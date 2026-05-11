@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Based on your existing json-logger plugin structure -->
+    <groupId>com.idfcfirstbank</groupId>
+    <artifactId>aerospike-connector</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>mule-extension</packaging>
+    <name>Aerospike Connector</name>
+
+    <parent>
+        <groupId>org.mule.extensions</groupId>
+        <artifactId>mule-modules-parent</artifactId>
+        <version>1.6.0</version>
+    </parent>
+
+    <properties>
+        <munit.version>3.2.0</munit.version>
+        <!-- Change this to the exact version approved by your company/Mule team. -->
+        <aerospike.client.version>9.0.0</aerospike.client.version>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- Aerospike Java client used internally by this Mule connector. -->
+        <dependency>
+            <groupId>com.aerospike</groupId>
+            <artifactId>aerospike-client-jdk8</artifactId>
+            <version>${aerospike.client.version}</version>
+        </dependency>
+
+        <!-- Same style as your existing json-logger plugin. -->
+        <dependency>
+            <groupId>com.mulesoft.munit</groupId>
+            <artifactId>munit-runner</artifactId>
+            <classifier>mule-plugin</classifier>
+            <version>${munit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.mulesoft.munit</groupId>
+            <artifactId>munit-tools</artifactId>
+            <classifier>mule-plugin</classifier>
+            <version>${munit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>MuleArtifactoryLocal</id>
+            <name>MuleArtifactoryLocal</name>
+            <url>https://artifactory.idfcfirstbank.com:443/artifactory/mule-maven-local</url>
+            <layout>default</layout>
+        </snapshotRepository>
+        <repository>
+            <id>MuleArtifactoryLocal</id>
+            <name>MuleArtifactoryLocal</name>
+            <url>https://artifactory.idfcfirstbank.com:443/artifactory/mule-maven-local</url>
+            <layout>default</layout>
+        </repository>
+    </distributionManagement>
+
+</project>

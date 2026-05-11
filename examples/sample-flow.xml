@@ -1,0 +1,28 @@
+<!-- Example only. Paste/adapt inside your Mule app XML. -->
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:aerospike="http://www.mulesoft.org/schema/mule/aerospike"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/aerospike http://www.mulesoft.org/schema/mule/aerospike/current/mule-aerospike.xsd">
+
+    <http:listener-config name="HTTP_Listener_config">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+
+    <aerospike:config name="Aerospike_Config">
+        <aerospike:basic hosts="localhost:3000" defaultPort="3000" />
+    </aerospike:config>
+
+    <flow name="get-customer-flow">
+        <http:listener config-ref="HTTP_Listener_config" path="/customer/{id}" />
+        <aerospike:get-record
+            config-ref="Aerospike_Config"
+            namespace="test"
+            setName="customer"
+            key="#[attributes.uriParams.id]" />
+    </flow>
+
+</mule>

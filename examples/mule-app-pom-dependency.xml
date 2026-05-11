@@ -1,0 +1,7 @@
+<!-- Add this in the Mule application's pom.xml dependencies section -->
+<dependency>
+    <groupId>com.idfcfirstbank</groupId>
+    <artifactId>aerospike-connector</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <classifier>mule-plugin</classifier>
+</dependency>
