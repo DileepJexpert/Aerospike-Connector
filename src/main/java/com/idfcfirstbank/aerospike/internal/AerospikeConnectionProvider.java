@@ -3,17 +3,22 @@ package com.idfcfirstbank.aerospike.internal;
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Host;
 import com.aerospike.client.policy.ClientPolicy;
+import com.idfcfirstbank.aerospike.internal.error.AerospikeError;
+import com.idfcfirstbank.aerospike.internal.util.AerospikeValidation;
+import org.mule.runtime.api.connection.CachedConnectionProvider;
 import org.mule.runtime.api.connection.ConnectionException;
-import org.mule.runtime.api.connection.ConnectionProvider;
 import org.mule.runtime.api.connection.ConnectionValidationResult;
 import org.mule.runtime.extension.api.annotation.Alias;
 import org.mule.runtime.extension.api.annotation.param.DisplayName;
 import org.mule.runtime.extension.api.annotation.param.Optional;
 import org.mule.runtime.extension.api.annotation.param.Parameter;
 import org.mule.runtime.extension.api.annotation.param.Password;
+import org.mule.runtime.extension.api.exception.ModuleException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Creates and validates Aerospike connections.
@@ -22,9 +27,14 @@ import java.util.List;
  *   localhost
  *   localhost:3000
  *   host1:3000,host2:3000
+ *
+ * CachedConnectionProvider lets Mule reuse the same connection object for a given connector config.
+ * This matches the Aerospike client recommendation to use one long-lived client per application/config.
  */
 @Alias("basic")
-public class AerospikeConnectionProvider implements ConnectionProvider<AerospikeConnection> {
+public class AerospikeConnectionProvider implements CachedConnectionProvider<AerospikeConnection> {
+
+    private static final Logger LOGGER = Logger.getLogger(AerospikeConnectionProvider.class.getName());
 
     @Parameter
     @DisplayName("Hosts")
@@ -52,21 +62,33 @@ public class AerospikeConnectionProvider implements ConnectionProvider<Aerospike
     private int connectionTimeoutMillis;
 
     @Parameter
-    @Optional(defaultValue = "1000")
-    @DisplayName("Socket Timeout Millis")
-    private int socketTimeoutMillis;
+    @Optional(defaultValue = "300")
+    @DisplayName("Max Connections Per Node")
+    private int maxConnectionsPerNode;
 
     @Override
     public AerospikeConnection connect() throws ConnectionException {
         try {
+            AerospikeValidation.requireNotBlank(hosts, "hosts");
+            AerospikeValidation.requireNonNegative(connectionTimeoutMillis, "connectionTimeoutMillis");
+            AerospikeValidation.requireNonNegative(maxConnectionsPerNode, "maxConnectionsPerNode");
+
             ClientPolicy policy = new ClientPolicy();
             policy.timeout = connectionTimeoutMillis;
             policy.user = emptyToNull(username);
             policy.password = emptyToNull(password);
+            policy.maxConnsPerNode = maxConnectionsPerNode;
 
-            AerospikeClient client = new AerospikeClient(policy, parseHosts(hosts, defaultPort));
+            Host[] parsedHosts = parseHosts(hosts, defaultPort);
+            LOGGER.info("Connecting to Aerospike hosts=" + hosts);
+
+            AerospikeClient client = new AerospikeClient(policy, parsedHosts);
+            LOGGER.info("Aerospike connection established");
             return new AerospikeConnection(client);
+        } catch (ModuleException ex) {
+            throw new ConnectionException(ex.getMessage(), ex);
         } catch (Exception ex) {
+            LOGGER.log(Level.SEVERE, "Unable to connect to Aerospike", ex);
             throw new ConnectionException("Unable to connect to Aerospike: " + ex.getMessage(), ex);
         }
     }
@@ -74,6 +96,7 @@ public class AerospikeConnectionProvider implements ConnectionProvider<Aerospike
     @Override
     public void disconnect(AerospikeConnection connection) {
         if (connection != null) {
+            LOGGER.info("Disconnecting Aerospike client");
             connection.disconnect();
         }
     }
@@ -87,8 +110,9 @@ public class AerospikeConnectionProvider implements ConnectionProvider<Aerospike
     }
 
     private Host[] parseHosts(String hostsText, int defaultPort) {
-        if (hostsText == null || hostsText.trim().isEmpty()) {
-            throw new IllegalArgumentException("hosts is required");
+        AerospikeValidation.requireNotBlank(hostsText, "hosts");
+        if (defaultPort <= 0) {
+            throw new ModuleException("defaultPort must be greater than zero", AerospikeError.VALIDATION_FAILED);
         }
 
         List<Host> result = new ArrayList<Host>();
@@ -106,7 +130,16 @@ public class AerospikeConnectionProvider implements ConnectionProvider<Aerospike
                 host = entry.substring(0, colon).trim();
                 port = Integer.parseInt(entry.substring(colon + 1).trim());
             }
+
+            AerospikeValidation.requireNotBlank(host, "host");
+            if (port <= 0) {
+                throw new ModuleException("port must be greater than zero", AerospikeError.VALIDATION_FAILED);
+            }
             result.add(new Host(host, port));
+        }
+
+        if (result.isEmpty()) {
+            throw new ModuleException("At least one Aerospike host is required", AerospikeError.VALIDATION_FAILED);
         }
 
         return result.toArray(new Host[result.size()]);
