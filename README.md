@@ -1,20 +1,25 @@
-# Aerospike Mule Connector
+# Aerospike Client Library
 
-This is a starter Mule 4 custom connector project for Aerospike, aligned with the company-style `json-logger` plugin pattern shared in the screenshots.
+Plain Java Maven library for calling Aerospike from Mule through Mule Java Module or DataWeave Java static method calls.
 
 ## What this project contains
 
-- Mule SDK / Mule extension style Maven project
-- `packaging` = `mule-extension`
+- normal Maven JAR project
+- `packaging` = `jar`
 - `groupId` = `com.idfcfirstbank`
-- `artifactId` = `aerospike-connector`
-- `mule-artifact.json` with `minMuleVersion` = `4.3.0`
+- `artifactId` = `aerospike-client-lib`
 - Aerospike Java client dependency
-- Basic connector operations:
-  - `get-record`
-  - `put-record`
-  - `delete-record`
+- Mule-friendly static facade: `AerospikeFunctions`
+- Java-friendly instance service: `AerospikeService`
+- cached `AerospikeClient` instances per host/auth config
+- Basic operations:
+  - `getRecord`
+  - `putRecord`
+  - `deleteRecord`
   - `exists`
+  - `batchGet`
+
+This is not a Mule SDK connector and will not appear in the Mule Palette. Mule apps call it through Java Module or DataWeave Java integration.
 
 ## Build locally
 
@@ -22,10 +27,10 @@ This is a starter Mule 4 custom connector project for Aerospike, aligned with th
 mvn clean install
 ```
 
-This installs the connector into your local Maven repository:
+This installs the library into your local Maven repository:
 
 ```text
-~/.m2/repository/com/idfcfirstbank/aerospike-connector/1.0.0-SNAPSHOT/
+~/.m2/repository/com/idfcfirstbank/aerospike-client-lib/1.0.0-SNAPSHOT/
 ```
 
 ## Use in a Mule application
@@ -35,25 +40,62 @@ Add this dependency to the Mule application's `pom.xml`:
 ```xml
 <dependency>
     <groupId>com.idfcfirstbank</groupId>
-    <artifactId>aerospike-connector</artifactId>
+    <artifactId>aerospike-client-lib</artifactId>
     <version>1.0.0-SNAPSHOT</version>
-    <classifier>mule-plugin</classifier>
 </dependency>
 ```
 
-Then in Anypoint Studio:
+## Mule Java Module example
 
-```text
-Right click Mule project → Maven → Update Project
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.AerospikeFunctions"
+    method="getRecord(String, String, String, String)">
+    <java:args><![CDATA[#[{
+        arg0: "localhost:3000",
+        arg1: "test",
+        arg2: "customer",
+        arg3: attributes.uriParams.id
+    }]]]></java:args>
+</java:invoke-static>
 ```
 
-or:
+## DataWeave static method example
 
-```text
-Right click Mule project → Mule → Update Project Dependencies
+```dw
+%dw 2.0
+output application/json
+---
+java!com::idfcfirstbank::aerospike::AerospikeFunctions::getRecord(
+    "localhost:3000",
+    "test",
+    "customer",
+    attributes.uriParams.id
+)
 ```
 
-Restart Studio if the connector does not appear in the Mule Palette.
+## Java API example
+
+```java
+AerospikeConfig config = new AerospikeConfig("localhost:3000");
+AerospikeService service = new AerospikeService(config);
+Map<String, Object> response = service.getRecord("test", "customer", "123");
+```
+
+## Response shape
+
+```json
+{
+  "success": true,
+  "found": true,
+  "key": "123",
+  "bins": {
+    "name": "Dileep"
+  },
+  "generation": 1,
+  "expiration": 0
+}
+```
 
 ## Local Aerospike for testing
 
@@ -66,42 +108,22 @@ docker run -d --name aerospike \
   aerospike/aerospike-server
 ```
 
-## Example connector configuration in Mule XML
-
-```xml
-<aerospike:config name="Aerospike_Config">
-    <aerospike:basic hosts="localhost:3000" defaultPort="3000" />
-</aerospike:config>
-```
-
-## Example operation usage
-
-```xml
-<aerospike:get-record
-    config-ref="Aerospike_Config"
-    namespace="test"
-    setName="customer"
-    key="#[attributes.uriParams.id]" />
-```
-
-## Notes before using in SIT/PROD
+## Notes before SIT/PROD
 
 Confirm these values with the Mule team before release:
 
 - Exact Mule runtime version
 - Java version used by Mule runtime
 - Approved Aerospike Java client version
-- Whether `mule-modules-parent` should remain `1.6.0` or be upgraded
 - Artifactory repository and credentials
 - Aerospike host, port, namespace, auth, TLS, and firewall access
 
 ## Important
 
-This is a starter POC project. Before production, add:
+Before production, confirm:
 
 - TLS support if Aerospike requires TLS
-- custom error mapping such as `AEROSPIKE:TIMEOUT`, `AEROSPIKE:CONNECTION`, etc.
-- MUnit tests
+- Mule flow error mapping for `JAVA:INVOCATION`
 - validation for payload/bin types
 - logging and masking according to company standards
-- batch operations if required
+- whether this plain library should later be wrapped by a Mule SDK connector for Palette support
