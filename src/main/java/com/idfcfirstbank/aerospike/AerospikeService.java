@@ -27,7 +27,8 @@ public final class AerospikeService {
 
     public Map<String, Object> getRecord(String namespace, String setName, Object key) {
         try {
-            Record record = client().get(new Policy(), key(namespace, setName, key));
+            Key aerospikeKey = key(namespace, setName, key);
+            Record record = client().get(new Policy(), aerospikeKey);
             return AerospikeResponse.record(key, record);
         } catch (RuntimeException e) {
             throw AerospikeExceptionMapper.map("getRecord", e);
@@ -36,9 +37,11 @@ public final class AerospikeService {
 
     public Map<String, Object> putRecord(String namespace, String setName, Object key, Map<String, Object> bins, int ttlSeconds) {
         try {
+            Key aerospikeKey = key(namespace, setName, key);
+            Bin[] aerospikeBins = toBins(bins);
             WritePolicy policy = new WritePolicy();
             policy.expiration = ttlSeconds;
-            client().put(policy, key(namespace, setName, key), toBins(bins));
+            client().put(policy, aerospikeKey, aerospikeBins);
             return AerospikeResponse.success(key, true);
         } catch (RuntimeException e) {
             throw AerospikeExceptionMapper.map("putRecord", e);
@@ -47,7 +50,8 @@ public final class AerospikeService {
 
     public Map<String, Object> deleteRecord(String namespace, String setName, Object key) {
         try {
-            boolean existed = client().delete(new WritePolicy(), key(namespace, setName, key));
+            Key aerospikeKey = key(namespace, setName, key);
+            boolean existed = client().delete(new WritePolicy(), aerospikeKey);
             return AerospikeResponse.success(key, existed);
         } catch (RuntimeException e) {
             throw AerospikeExceptionMapper.map("deleteRecord", e);
@@ -56,7 +60,8 @@ public final class AerospikeService {
 
     public Map<String, Object> exists(String namespace, String setName, Object key) {
         try {
-            boolean exists = client().exists(new Policy(), key(namespace, setName, key));
+            Key aerospikeKey = key(namespace, setName, key);
+            boolean exists = client().exists(new Policy(), aerospikeKey);
             return AerospikeResponse.success(key, exists);
         } catch (RuntimeException e) {
             throw AerospikeExceptionMapper.map("exists", e);
