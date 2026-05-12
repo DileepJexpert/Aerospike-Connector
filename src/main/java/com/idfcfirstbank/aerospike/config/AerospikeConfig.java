@@ -1,4 +1,4 @@
-package com.idfcfirstbank.aerospike;
+package com.idfcfirstbank.aerospike.config;
 
 import java.util.Objects;
 
@@ -33,7 +33,7 @@ public final class AerospikeConfig {
         return password;
     }
 
-    String clientKey() {
+    public String clientKey() {
         return hosts + "|" + nullToEmpty(user) + "|" + nullToEmpty(password);
     }
 
@@ -49,14 +49,14 @@ public final class AerospikeConfig {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
+    public boolean equals(Object object) {
+        if (this == object) {
             return true;
         }
-        if (!(o instanceof AerospikeConfig)) {
+        if (!(object instanceof AerospikeConfig)) {
             return false;
         }
-        AerospikeConfig that = (AerospikeConfig) o;
+        AerospikeConfig that = (AerospikeConfig) object;
         return hosts.equals(that.hosts)
                 && Objects.equals(user, that.user)
                 && Objects.equals(password, that.password);

@@ -15,7 +15,7 @@
     <flow name="get-customer-flow">
         <http:listener config-ref="HTTP_Listener_config" path="/customer/{id}" />
         <java:invoke-static
-            class="com.idfcfirstbank.aerospike.AerospikeFunctions"
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
             method="getRecord(String, String, String, String)">
             <java:args><![CDATA[#[{
                 arg0: "localhost:3000",

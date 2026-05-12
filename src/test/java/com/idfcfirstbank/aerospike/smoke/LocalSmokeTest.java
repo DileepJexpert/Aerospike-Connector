@@ -1,4 +1,6 @@
-package com.idfcfirstbank.aerospike;
+package com.idfcfirstbank.aerospike.smoke;
+
+import com.idfcfirstbank.aerospike.api.AerospikeFunctions;
 
 import java.util.Arrays;
 import java.util.HashMap;

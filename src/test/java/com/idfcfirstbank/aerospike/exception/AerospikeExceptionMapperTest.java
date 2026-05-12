@@ -1,4 +1,4 @@
-package com.idfcfirstbank.aerospike;
+package com.idfcfirstbank.aerospike.exception;
 
 import com.aerospike.client.AerospikeException;
 import com.aerospike.client.ResultCode;
@@ -14,33 +14,35 @@ class AerospikeExceptionMapperTest {
     void mapsValidationErrors() {
         AerospikeOperationException exception = AerospikeExceptionMapper.map(
                 "putRecord",
-                new IllegalArgumentException("bins must not be empty"));
+                AerospikeErrorType.WRITE_FAILURE,
+                new IllegalArgumentException("bins map is required and cannot be empty"));
 
         assertEquals("putRecord", exception.getOperation());
-        assertEquals("VALIDATION", exception.getErrorCategory());
-        assertTrue(exception.getMessage().contains("bins must not be empty"));
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("bins map is required"));
     }
 
     @Test
     void mapsAerospikeTimeoutErrors() {
         AerospikeOperationException exception = AerospikeExceptionMapper.map(
                 "getRecord",
+                AerospikeErrorType.UNKNOWN,
                 new AerospikeException(ResultCode.TIMEOUT, "socket timeout"));
 
-        assertEquals("TIMEOUT", exception.getErrorCategory());
+        assertEquals(AerospikeErrorType.TIMEOUT, exception.getErrorType());
         assertEquals("getRecord", exception.getOperation());
-        assertTrue(exception.getMessage().contains("socket timeout"));
+        assertTrue(exception.getMessage().contains("timed out"));
     }
 
     @Test
     void returnsExistingOperationExceptionAsIs() {
         AerospikeOperationException original = new AerospikeOperationException(
                 "exists",
-                "CONNECTIVITY",
+                AerospikeErrorType.CONNECTION_FAILED,
                 "existing",
                 null);
 
-        AerospikeOperationException mapped = AerospikeExceptionMapper.map("ignored", original);
+        AerospikeOperationException mapped = AerospikeExceptionMapper.map("ignored", AerospikeErrorType.UNKNOWN, original);
 
         assertSame(original, mapped);
     }

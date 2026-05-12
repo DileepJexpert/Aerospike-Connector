@@ -1,4 +1,4 @@
-package com.idfcfirstbank.aerospike;
+package com.idfcfirstbank.aerospike.config;
 
 import org.junit.jupiter.api.Test;
 

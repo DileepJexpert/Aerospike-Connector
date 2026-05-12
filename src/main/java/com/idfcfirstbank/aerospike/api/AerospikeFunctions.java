@@ -1,4 +1,8 @@
-package com.idfcfirstbank.aerospike;
+package com.idfcfirstbank.aerospike.api;
+
+import com.idfcfirstbank.aerospike.config.AerospikeConfig;
+import com.idfcfirstbank.aerospike.service.AerospikeClientProvider;
+import com.idfcfirstbank.aerospike.service.AerospikeRecordService;
 
 import java.util.List;
 import java.util.Map;
@@ -60,11 +64,11 @@ public final class AerospikeFunctions {
         AerospikeClientProvider.closeAll();
     }
 
-    private static AerospikeService service(String hosts) {
-        return new AerospikeService(new AerospikeConfig(hosts));
+    private static AerospikeRecordService service(String hosts) {
+        return new AerospikeRecordService(new AerospikeConfig(hosts));
     }
 
-    private static AerospikeService service(String hosts, String user, String password) {
-        return new AerospikeService(new AerospikeConfig(hosts, user, password));
+    private static AerospikeRecordService service(String hosts, String user, String password) {
+        return new AerospikeRecordService(new AerospikeConfig(hosts, user, password));
     }
 }

@@ -1,6 +1,23 @@
 # Aerospike Client Library
 
-Plain Java Maven library for calling Aerospike from Mule through Mule Java Module or DataWeave Java static method calls.
+Plain Java Maven library for calling Aerospike from Mule through Mule Java Module or DataWeave static method calls.
+
+## Package structure
+
+This repo stays as one Java JAR, but the code is organized in a cleaner package layout:
+
+- `com.idfcfirstbank.aerospike.api`
+  static Mule-friendly facade methods
+- `com.idfcfirstbank.aerospike.config`
+  connection configuration objects
+- `com.idfcfirstbank.aerospike.service`
+  client lifecycle and record operations
+- `com.idfcfirstbank.aerospike.exception`
+  error types and exception mapping
+- `com.idfcfirstbank.aerospike.model`
+  response helpers
+- `com.idfcfirstbank.aerospike.util`
+  shared validation helpers
 
 ## What this project contains
 
@@ -9,28 +26,20 @@ Plain Java Maven library for calling Aerospike from Mule through Mule Java Modul
 - `groupId` = `com.idfcfirstbank`
 - `artifactId` = `aerospike-client-lib`
 - Aerospike Java client dependency
-- Mule-friendly static facade: `AerospikeFunctions`
-- Java-friendly instance service: `AerospikeService`
-- cached `AerospikeClient` instances per host/auth config
-- Basic operations:
+- static facade for Mule and DataWeave: `AerospikeFunctions`
+- internal client cache for reusing `AerospikeClient`
+- basic operations:
   - `getRecord`
   - `putRecord`
   - `deleteRecord`
   - `exists`
   - `batchGet`
 
-This is not a Mule SDK connector and will not appear in the Mule Palette. Mule apps call it through Java Module or DataWeave Java integration.
-
 ## Build locally
 
 ```bash
+mvn clean test
 mvn clean install
-```
-
-This installs the library into your local Maven repository:
-
-```text
-~/.m2/repository/com/idfcfirstbank/aerospike-client-lib/1.0.0-SNAPSHOT/
 ```
 
 ## Use in a Mule application
@@ -49,7 +58,7 @@ Add this dependency to the Mule application's `pom.xml`:
 
 ```xml
 <java:invoke-static
-    class="com.idfcfirstbank.aerospike.AerospikeFunctions"
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
     method="getRecord(String, String, String, String)">
     <java:args><![CDATA[#[{
         arg0: "localhost:3000",
@@ -66,7 +75,7 @@ Add this dependency to the Mule application's `pom.xml`:
 %dw 2.0
 output application/json
 ---
-java!com::idfcfirstbank::aerospike::AerospikeFunctions::getRecord(
+java!com::idfcfirstbank::aerospike::api::AerospikeFunctions::getRecord(
     "localhost:3000",
     "test",
     "customer",
@@ -74,30 +83,9 @@ java!com::idfcfirstbank::aerospike::AerospikeFunctions::getRecord(
 )
 ```
 
-## Java API example
-
-```java
-AerospikeConfig config = new AerospikeConfig("localhost:3000");
-AerospikeService service = new AerospikeService(config);
-Map<String, Object> response = service.getRecord("test", "customer", "123");
-```
-
-## Response shape
-
-```json
-{
-  "success": true,
-  "found": true,
-  "key": "123",
-  "bins": {
-    "name": "Dileep"
-  },
-  "generation": 1,
-  "expiration": 0
-}
-```
-
 ## Local Aerospike for testing
+
+Use the included [docker-compose.yml](</C:/Users/dileepkm/OneDrive/ドキュメント/New project/docker-compose.yml>) or run:
 
 ```bash
 docker run -d --name aerospike \
@@ -108,22 +96,6 @@ docker run -d --name aerospike \
   aerospike/aerospike-server
 ```
 
-## Notes before SIT/PROD
+## Local smoke test
 
-Confirm these values with the Mule team before release:
-
-- Exact Mule runtime version
-- Java version used by Mule runtime
-- Approved Aerospike Java client version
-- Artifactory repository and credentials
-- Aerospike host, port, namespace, auth, TLS, and firewall access
-
-## Important
-
-Before production, confirm:
-
-- TLS support if Aerospike requires TLS
-- Mule flow error mapping for `JAVA:INVOCATION`
-- validation for payload/bin types
-- logging and masking according to company standards
-- whether this plain library should later be wrapped by a Mule SDK connector for Palette support
+The repo includes [LocalSmokeTest.java](</C:/Users/dileepkm/OneDrive/ドキュメント/New project/src/test/java/com/idfcfirstbank/aerospike/smoke/LocalSmokeTest.java>) for direct Aerospike verification.

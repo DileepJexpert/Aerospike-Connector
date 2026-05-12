@@ -1,8 +1,10 @@
-package com.idfcfirstbank.aerospike;
+package com.idfcfirstbank.aerospike.service;
 
 import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Host;
 import com.aerospike.client.policy.ClientPolicy;
+import com.idfcfirstbank.aerospike.config.AerospikeConfig;
+import com.idfcfirstbank.aerospike.util.AerospikeValidation;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -27,7 +29,7 @@ public final class AerospikeClientProvider {
             try {
                 client.close();
             } catch (RuntimeException ignored) {
-                // Best effort shutdown for Mule app stop/redeploy hooks.
+                // Best effort shutdown.
             }
         }
         CLIENTS.clear();
@@ -41,19 +43,17 @@ public final class AerospikeClientProvider {
     }
 
     private static Host[] parseHosts(String hosts) {
-        String[] hostParts = hosts.split(",");
-        Host[] parsedHosts = new Host[hostParts.length];
-        for (int i = 0; i < hostParts.length; i++) {
-            parsedHosts[i] = parseHost(hostParts[i]);
+        String[] entries = hosts.split(",");
+        Host[] parsed = new Host[entries.length];
+        for (int i = 0; i < entries.length; i++) {
+            parsed[i] = parseHost(entries[i]);
         }
-        return parsedHosts;
+        return parsed;
     }
 
-    private static Host parseHost(String hostValue) {
-        String value = hostValue == null ? "" : hostValue.trim();
-        if (value.isEmpty()) {
-            throw new IllegalArgumentException("hosts contains a blank host entry");
-        }
+    private static Host parseHost(String rawHost) {
+        String value = rawHost == null ? "" : rawHost.trim();
+        AerospikeValidation.requireNotBlank(value, "host");
 
         int separator = value.lastIndexOf(':');
         if (separator <= 0 || separator == value.length() - 1) {
@@ -62,6 +62,7 @@ public final class AerospikeClientProvider {
 
         String host = value.substring(0, separator).trim();
         int port = Integer.parseInt(value.substring(separator + 1).trim());
+        AerospikeValidation.requirePositive(port, "port");
         return new Host(host, port);
     }
 }
