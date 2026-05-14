@@ -25,6 +25,7 @@ This repo stays as one Java JAR, but the code is organized in a cleaner package 
 - `packaging` = `jar`
 - `groupId` = `com.idfcfirstbank`
 - `artifactId` = `aerospike-client-lib`
+- Java 17 target, aligned with Mule 4.9 on Java 17
 - Aerospike Java client dependency
 - static facade for Mule and DataWeave: `AerospikeFunctions`
 - internal client cache for reusing `AerospikeClient`

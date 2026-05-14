@@ -8,6 +8,8 @@ This project is a plain Java JAR, not a Mule SDK connector. Mule applications us
 
 - Artifact:
   `com.idfcfirstbank:aerospike-client-lib:1.0.0-SNAPSHOT`
+- Java target:
+  Java 17, aligned with Mule 4.9 running on Java 17
 - Main Mule entrypoint class:
   `com.idfcfirstbank.aerospike.api.AerospikeFunctions`
 - Current supported security modes:
@@ -21,6 +23,8 @@ This project is a plain Java JAR, not a Mule SDK connector. Mule applications us
 So for plain TCP Aerospike or username/password Aerospike, the library is ready.
 
 If your Aerospike cluster uses TLS, you must enhance the code before using it in SIT or PROD. The required code changes are documented in section 9.
+
+The project uses `aerospike-client-jdk8` even on Java 17. Aerospike's Java client documentation says `aerospike-client-jdk8` is the package for runtimes from JDK 8 up to before JDK 21. The `aerospike-client-jdk21` package is for JDK 21 or later.
 
 ## 2. How Mule should include the library
 
