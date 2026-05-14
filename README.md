@@ -29,6 +29,8 @@ This repo stays as one Java JAR, but the code is organized in a cleaner package 
 - Aerospike Java client dependency
 - static facade for Mule and DataWeave: `AerospikeFunctions`
 - internal client cache for reusing `AerospikeClient`
+- config-map methods for local, DEV, SIT, and PROD environment properties
+- TLS, mTLS, auth, timeout, and connection-limit properties
 - basic operations:
   - `getRecord`
   - `putRecord`

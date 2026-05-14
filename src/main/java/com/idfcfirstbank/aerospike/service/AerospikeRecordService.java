@@ -32,7 +32,7 @@ public final class AerospikeRecordService {
 
     public Map<String, Object> getRecord(String namespace, String setName, String key) {
         try {
-            Record record = client().get(new Policy(), key(namespace, setName, key));
+            Record record = client().get(readPolicy(), key(namespace, setName, key));
             return AerospikeResponse.record(namespace, setName, key, record);
         } catch (RuntimeException exception) {
             throw AerospikeExceptionMapper.map("getRecord", AerospikeErrorType.UNKNOWN, exception);
@@ -42,7 +42,7 @@ public final class AerospikeRecordService {
     public Map<String, Object> putRecord(String namespace, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
         try {
             AerospikeValidation.requireNonNegative(ttlSeconds, "ttlSeconds");
-            WritePolicy writePolicy = new WritePolicy();
+            WritePolicy writePolicy = writePolicy();
             writePolicy.expiration = ttlSeconds;
             client().put(writePolicy, key(namespace, setName, key), toBins(bins));
             return AerospikeResponse.success(namespace, setName, key, "put-record", true);
@@ -53,7 +53,7 @@ public final class AerospikeRecordService {
 
     public Map<String, Object> deleteRecord(String namespace, String setName, String key) {
         try {
-            boolean deleted = client().delete(new WritePolicy(), key(namespace, setName, key));
+            boolean deleted = client().delete(writePolicy(), key(namespace, setName, key));
             return AerospikeResponse.success(namespace, setName, key, "delete-record", deleted);
         } catch (RuntimeException exception) {
             throw AerospikeExceptionMapper.map("deleteRecord", AerospikeErrorType.DELETE_FAILURE, exception);
@@ -62,7 +62,7 @@ public final class AerospikeRecordService {
 
     public Map<String, Object> exists(String namespace, String setName, String key) {
         try {
-            boolean exists = client().exists(new Policy(), key(namespace, setName, key));
+            boolean exists = client().exists(readPolicy(), key(namespace, setName, key));
             return AerospikeResponse.exists(namespace, setName, key, exists);
         } catch (RuntimeException exception) {
             throw AerospikeExceptionMapper.map("exists", AerospikeErrorType.UNKNOWN, exception);
@@ -80,7 +80,7 @@ public final class AerospikeRecordService {
                 aerospikeKeys[i] = key(namespace, setName, keys.get(i));
             }
 
-            Record[] records = client().get(new BatchPolicy(), aerospikeKeys);
+            Record[] records = client().get(batchPolicy(), aerospikeKeys);
             List<Map<String, Object>> responses = new ArrayList<Map<String, Object>>(keys.size());
             for (int i = 0; i < keys.size(); i++) {
                 responses.add(AerospikeResponse.record(namespace, setName, keys.get(i), records[i]));
@@ -93,6 +93,34 @@ public final class AerospikeRecordService {
 
     private AerospikeClient client() {
         return AerospikeClientProvider.getClient(config);
+    }
+
+    private Policy readPolicy() {
+        Policy policy = new Policy();
+        applyTimeouts(policy, config.getReadTimeout());
+        return policy;
+    }
+
+    private WritePolicy writePolicy() {
+        WritePolicy policy = new WritePolicy();
+        applyTimeouts(policy, config.getWriteTimeout());
+        return policy;
+    }
+
+    private BatchPolicy batchPolicy() {
+        BatchPolicy policy = new BatchPolicy();
+        applyTimeouts(policy, config.getReadTimeout());
+        return policy;
+    }
+
+    private void applyTimeouts(Policy policy, int operationTimeout) {
+        if (config.getConnectTimeout() > 0) {
+            policy.connectTimeout = config.getConnectTimeout();
+        }
+        if (operationTimeout > 0) {
+            policy.socketTimeout = operationTimeout;
+            policy.totalTimeout = operationTimeout;
+        }
     }
 
     private static Key key(String namespace, String setName, String key) {

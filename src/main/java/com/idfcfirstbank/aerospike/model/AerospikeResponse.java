@@ -35,6 +35,8 @@ public final class AerospikeResponse {
 
     public static Map<String, Object> exists(String namespace, String setName, String key, boolean value) {
         Map<String, Object> response = base(namespace, setName, key);
+        response.put("success", true);
+        response.put("operation", "exists");
         response.put("exists", value);
         return response;
     }

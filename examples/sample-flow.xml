@@ -16,12 +16,29 @@
         <http:listener config-ref="HTTP_Listener_config" path="/customer/{id}" />
         <java:invoke-static
             class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
-            method="getRecord(String, String, String, String)">
+            method="getRecordWithConfig(java.util.Map, String, String)">
             <java:args><![CDATA[#[{
-                arg0: "localhost:3000",
-                arg1: "test",
-                arg2: "customer",
-                arg3: attributes.uriParams.id
+                arg0: {
+                    hosts: p('aerospike.hosts'),
+                    namespace: p('aerospike.namespace'),
+                    tlsEnabled: p('aerospike.tlsEnabled') as Boolean,
+                    authEnabled: p('aerospike.authEnabled') as Boolean,
+                    tlsName: p('aerospike.tlsName') default null,
+                    username: p('aerospike.username') default null,
+                    password: p('aerospike.password') default null,
+                    maxConnectionsPerNode: p('aerospike.maxConnectionsPerNode') as Number,
+                    maxCommandsInProcess: p('aerospike.maxCommandsInProcess') as Number,
+                    maxCommandsInQueue: p('aerospike.maxCommandsInQueue') as Number,
+                    readTimeout: p('aerospike.readTimeout') as Number,
+                    writeTimeout: p('aerospike.writeTimeout') as Number,
+                    connectTimeout: p('aerospike.connectTimeout') as Number,
+                    trustStorePath: p('aerospike.trustStorePath') default null,
+                    trustStorePassword: p('aerospike.trustStorePassword') default null,
+                    keyStorePath: p('aerospike.keyStorePath') default null,
+                    keyStorePassword: p('aerospike.keyStorePassword') default null
+                },
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id
             }]]]></java:args>
         </java:invoke-static>
     </flow>

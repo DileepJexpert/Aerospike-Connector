@@ -36,4 +36,13 @@ class AerospikeResponseTest {
         assertFalse((Boolean) response.get("found"));
         assertEquals("123", response.get("key"));
     }
+
+    @Test
+    void buildsExistsResponseWithConsistentSuccessShape() {
+        Map<String, Object> response = AerospikeResponse.exists("test", "customer", "123", true);
+
+        assertTrue((Boolean) response.get("success"));
+        assertEquals("exists", response.get("operation"));
+        assertEquals(Boolean.TRUE, response.get("exists"));
+    }
 }
