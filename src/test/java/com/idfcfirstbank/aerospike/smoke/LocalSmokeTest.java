@@ -2,6 +2,7 @@ package com.idfcfirstbank.aerospike.smoke;
 
 import com.idfcfirstbank.aerospike.api.AerospikeFunctions;
 
+import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -30,6 +31,8 @@ public final class LocalSmokeTest {
         Map<String, Object> bins = new HashMap<String, Object>();
         bins.put("name", "Dileep");
         bins.put("city", "Pune");
+        bins.put("score", new BigDecimal("10.5"));
+        bins.put("visits", new BigDecimal("12"));
 
         System.out.println("PUT:");
         System.out.println(AerospikeFunctions.putRecordWithConfig(config, setName, key, bins, 0));

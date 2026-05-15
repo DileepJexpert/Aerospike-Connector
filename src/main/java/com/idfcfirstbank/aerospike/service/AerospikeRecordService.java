@@ -14,8 +14,11 @@ import com.idfcfirstbank.aerospike.exception.AerospikeExceptionMapper;
 import com.idfcfirstbank.aerospike.model.AerospikeResponse;
 import com.idfcfirstbank.aerospike.util.AerospikeValidation;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -32,7 +35,8 @@ public final class AerospikeRecordService {
 
     public Map<String, Object> getRecord(String namespace, String setName, String key) {
         try {
-            Record record = client().get(readPolicy(), key(namespace, setName, key));
+            Key recordKey = key(namespace, setName, key);
+            Record record = client().get(readPolicy(), recordKey);
             return AerospikeResponse.record(namespace, setName, key, record);
         } catch (RuntimeException exception) {
             throw AerospikeExceptionMapper.map("getRecord", AerospikeErrorType.UNKNOWN, exception);
@@ -42,9 +46,11 @@ public final class AerospikeRecordService {
     public Map<String, Object> putRecord(String namespace, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
         try {
             AerospikeValidation.requireNonNegative(ttlSeconds, "ttlSeconds");
+            Key recordKey = key(namespace, setName, key);
+            Bin[] recordBins = toBins(bins);
             WritePolicy writePolicy = writePolicy();
             writePolicy.expiration = ttlSeconds;
-            client().put(writePolicy, key(namespace, setName, key), toBins(bins));
+            client().put(writePolicy, recordKey, recordBins);
             return AerospikeResponse.success(namespace, setName, key, "put-record", true);
         } catch (RuntimeException exception) {
             throw AerospikeExceptionMapper.map("putRecord", AerospikeErrorType.WRITE_FAILURE, exception);
@@ -53,7 +59,8 @@ public final class AerospikeRecordService {
 
     public Map<String, Object> deleteRecord(String namespace, String setName, String key) {
         try {
-            boolean deleted = client().delete(writePolicy(), key(namespace, setName, key));
+            Key recordKey = key(namespace, setName, key);
+            boolean deleted = client().delete(writePolicy(), recordKey);
             return AerospikeResponse.success(namespace, setName, key, "delete-record", deleted);
         } catch (RuntimeException exception) {
             throw AerospikeExceptionMapper.map("deleteRecord", AerospikeErrorType.DELETE_FAILURE, exception);
@@ -62,7 +69,8 @@ public final class AerospikeRecordService {
 
     public Map<String, Object> exists(String namespace, String setName, String key) {
         try {
-            boolean exists = client().exists(readPolicy(), key(namespace, setName, key));
+            Key recordKey = key(namespace, setName, key);
+            boolean exists = client().exists(readPolicy(), recordKey);
             return AerospikeResponse.exists(namespace, setName, key, exists);
         } catch (RuntimeException exception) {
             throw AerospikeExceptionMapper.map("exists", AerospikeErrorType.UNKNOWN, exception);
@@ -138,8 +146,37 @@ public final class AerospikeRecordService {
         List<Bin> result = new ArrayList<Bin>(bins.size());
         for (Map.Entry<String, Object> entry : bins.entrySet()) {
             AerospikeValidation.requireNotBlank(entry.getKey(), "bin name");
-            result.add(entry.getValue() == null ? Bin.asNull(entry.getKey()) : new Bin(entry.getKey(), Value.get(entry.getValue())));
+            Object value = normalizeBinValue(entry.getValue());
+            result.add(value == null ? Bin.asNull(entry.getKey()) : new Bin(entry.getKey(), Value.get(value)));
         }
         return result.toArray(new Bin[result.size()]);
+    }
+
+    private static Object normalizeBinValue(Object value) {
+        if (value instanceof BigDecimal) {
+            BigDecimal decimal = ((BigDecimal) value).stripTrailingZeros();
+            if (decimal.scale() <= 0) {
+                return decimal.longValueExact();
+            }
+            return decimal.doubleValue();
+        }
+        if (value instanceof BigInteger) {
+            return ((BigInteger) value).longValueExact();
+        }
+        if (value instanceof Map<?, ?>) {
+            Map<Object, Object> normalized = new LinkedHashMap<Object, Object>();
+            for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
+                normalized.put(entry.getKey(), normalizeBinValue(entry.getValue()));
+            }
+            return normalized;
+        }
+        if (value instanceof List<?>) {
+            List<Object> normalized = new ArrayList<Object>();
+            for (Object item : (List<?>) value) {
+                normalized.add(normalizeBinValue(item));
+            }
+            return normalized;
+        }
+        return value;
     }
 }

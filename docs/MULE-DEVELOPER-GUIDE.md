@@ -146,10 +146,14 @@ Other config-map methods:
 
 ```text
 putRecordWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds)
+putRecordWithConfig(Map config, String setName, String key, Map bins, Number ttlSeconds)
+putRecordWithConfig(Map config, String setName, String key, Map bins)
 deleteRecordWithConfig(Map config, String setName, String key)
 existsWithConfig(Map config, String setName, String key)
 batchGetWithConfig(Map config, String setName, List keys)
 ```
+
+For Mule, the no-TTL or `Number` TTL overload is often easier because DataWeave numeric values may not resolve as Java primitive `int`.
 
 ## 4. Local Docker Compose
 

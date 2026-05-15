@@ -26,6 +26,16 @@ public final class AerospikeFunctions {
         return service(hosts).putRecord(namespace, setName, key, bins, ttlSeconds);
     }
 
+    public static Map<String, Object> putRecord(
+            String hosts,
+            String namespace,
+            String setName,
+            String key,
+            Map<String, Object> bins,
+            Number ttlSeconds) {
+        return putRecord(hosts, namespace, setName, key, bins, toTtlSeconds(ttlSeconds));
+    }
+
     public static Map<String, Object> deleteRecord(String hosts, String namespace, String setName, String key) {
         return service(hosts).deleteRecord(namespace, setName, key);
     }
@@ -51,6 +61,23 @@ public final class AerospikeFunctions {
             int ttlSeconds) {
         AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
         return service(aerospikeConfig).putRecord(aerospikeConfig.getNamespace(), setName, key, bins, ttlSeconds);
+    }
+
+    public static Map<String, Object> putRecordWithConfig(
+            Map<String, Object> config,
+            String setName,
+            String key,
+            Map<String, Object> bins,
+            Number ttlSeconds) {
+        return putRecordWithConfig(config, setName, key, bins, toTtlSeconds(ttlSeconds));
+    }
+
+    public static Map<String, Object> putRecordWithConfig(
+            Map<String, Object> config,
+            String setName,
+            String key,
+            Map<String, Object> bins) {
+        return putRecordWithConfig(config, setName, key, bins, 0);
     }
 
     public static Map<String, Object> deleteRecordWithConfig(Map<String, Object> config, String setName, String key) {
@@ -88,6 +115,18 @@ public final class AerospikeFunctions {
             Map<String, Object> bins,
             int ttlSeconds) {
         return service(hosts, user, password).putRecord(namespace, setName, key, bins, ttlSeconds);
+    }
+
+    public static Map<String, Object> putRecordWithAuth(
+            String hosts,
+            String user,
+            String password,
+            String namespace,
+            String setName,
+            String key,
+            Map<String, Object> bins,
+            Number ttlSeconds) {
+        return putRecordWithAuth(hosts, user, password, namespace, setName, key, bins, toTtlSeconds(ttlSeconds));
     }
 
     public static Map<String, Object> deleteRecordWithAuth(
@@ -134,5 +173,9 @@ public final class AerospikeFunctions {
 
     private static AerospikeRecordService service(AerospikeConfig config) {
         return new AerospikeRecordService(config);
+    }
+
+    private static int toTtlSeconds(Number ttlSeconds) {
+        return ttlSeconds == null ? 0 : ttlSeconds.intValue();
     }
 }
