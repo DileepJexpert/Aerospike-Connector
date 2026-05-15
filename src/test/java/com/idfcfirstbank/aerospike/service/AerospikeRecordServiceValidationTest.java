@@ -5,6 +5,8 @@ import com.idfcfirstbank.aerospike.exception.AerospikeErrorType;
 import com.idfcfirstbank.aerospike.exception.AerospikeOperationException;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,5 +43,27 @@ class AerospikeRecordServiceValidationTest {
 
         assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
         assertTrue(exception.getMessage().contains("bins map is required"));
+    }
+
+    @Test
+    void getRecordWithFieldsRejectsBlankFieldNameBeforeConnection() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.getRecord("test", "customer", "123", Arrays.asList("name", " ")));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("fieldName must not be blank"));
+    }
+
+    @Test
+    void queryByFieldEqualsRejectsFractionalNumberBeforeConnection() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.queryByFieldEquals("test", "customer", "salary", new BigDecimal("10.5"), Collections.singletonList("salary")));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("fieldValue must be an integer value"));
     }
 }

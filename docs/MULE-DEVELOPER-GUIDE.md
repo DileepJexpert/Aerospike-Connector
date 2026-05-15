@@ -109,6 +109,19 @@ Recommended method:
 getRecordWithConfig(java.util.Map, String, String)
 ```
 
+If Mule needs only selected "columns", use the projected-read method:
+
+```text
+getRecordFieldsWithConfig(java.util.Map, String, String, java.util.List)
+```
+
+In this library:
+
+- Aerospike set = what many teams informally call a table
+- Aerospike bin = what many teams informally call a column
+
+So if a record has 5 bins and Mule only wants 4, pass those 4 bin names in the list.
+
 Example:
 
 ```xml
@@ -145,15 +158,103 @@ Example:
 Other config-map methods:
 
 ```text
+getRecordFieldsWithConfig(Map config, String setName, String key, List fieldNames)
 putRecordWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds)
 putRecordWithConfig(Map config, String setName, String key, Map bins, Number ttlSeconds)
 putRecordWithConfig(Map config, String setName, String key, Map bins)
 deleteRecordWithConfig(Map config, String setName, String key)
 existsWithConfig(Map config, String setName, String key)
 batchGetWithConfig(Map config, String setName, List keys)
+batchGetFieldsWithConfig(Map config, String setName, List keys, List fieldNames)
+queryRecordsByFieldEqualsWithConfig(Map config, String setName, String fieldName, Object fieldValue, List fieldNames)
+queryRecordsByFieldRangeWithConfig(Map config, String setName, String fieldName, Number rangeBegin, Number rangeEnd, List fieldNames)
 ```
 
 For Mule, the no-TTL or `Number` TTL overload is often easier because DataWeave numeric values may not resolve as Java primitive `int`.
+
+Projected read example:
+
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="getRecordFieldsWithConfig(java.util.Map, String, String, java.util.List)">
+    <java:args><![CDATA[#[{
+        arg0: {
+            hosts: p('aerospike.hosts'),
+            namespace: p('aerospike.namespace'),
+            tlsEnabled: p('aerospike.tlsEnabled') as Boolean,
+            authEnabled: p('aerospike.authEnabled') as Boolean,
+            tlsName: p('aerospike.tlsName') default null,
+            username: p('aerospike.username') default null,
+            password: p('aerospike.password') default null
+        },
+        arg1: p('aerospike.set.customer'),
+        arg2: attributes.uriParams.id,
+        arg3: ['firstName', 'lastName', 'age', 'status']
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Batch projected read example:
+
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="batchGetFieldsWithConfig(java.util.Map, String, java.util.List, java.util.List)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: ['1001', '1002', '1003'],
+        arg3: ['firstName', 'city']
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Query example:
+
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="queryRecordsByFieldEqualsWithConfig(java.util.Map, String, String, Object, java.util.List)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: 'city',
+        arg3: 'Mumbai',
+        arg4: ['firstName', 'lastName', 'city']
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Range query example:
+
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="queryRecordsByFieldRangeWithConfig(java.util.Map, String, String, Number, Number, java.util.List)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: 'age',
+        arg3: 25,
+        arg4: 40,
+        arg5: ['firstName', 'age', 'city']
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Important:
+
+1. `queryRecordsByFieldEqualsWithConfig` and `queryRecordsByFieldRangeWithConfig` need an Aerospike secondary index on the filtered bin.
+2. Equality queries currently support non-blank `String` and integer `Number` values.
+3. Range queries currently support integer `Number` values only.
+
+Example AQL index creation for local testing:
+
+```sql
+CREATE INDEX idx_customer_city ON test.customer (city) STRING
+CREATE INDEX idx_customer_age ON test.customer (age) NUMERIC
+```
 
 ## 4. Local Docker Compose
 

@@ -16,6 +16,15 @@ public final class AerospikeFunctions {
         return service(hosts).getRecord(namespace, setName, key);
     }
 
+    public static Map<String, Object> getRecordFields(
+            String hosts,
+            String namespace,
+            String setName,
+            String key,
+            List<String> fieldNames) {
+        return service(hosts).getRecord(namespace, setName, key, fieldNames);
+    }
+
     public static Map<String, Object> putRecord(
             String hosts,
             String namespace,
@@ -48,9 +57,48 @@ public final class AerospikeFunctions {
         return service(hosts).batchGet(namespace, setName, keys);
     }
 
+    public static List<Map<String, Object>> batchGetFields(
+            String hosts,
+            String namespace,
+            String setName,
+            List<String> keys,
+            List<String> fieldNames) {
+        return service(hosts).batchGet(namespace, setName, keys, fieldNames);
+    }
+
+    public static List<Map<String, Object>> queryRecordsByFieldEquals(
+            String hosts,
+            String namespace,
+            String setName,
+            String fieldName,
+            Object fieldValue,
+            List<String> fieldNames) {
+        return service(hosts).queryByFieldEquals(namespace, setName, fieldName, fieldValue, fieldNames);
+    }
+
+    public static List<Map<String, Object>> queryRecordsByFieldRange(
+            String hosts,
+            String namespace,
+            String setName,
+            String fieldName,
+            Number rangeBegin,
+            Number rangeEnd,
+            List<String> fieldNames) {
+        return service(hosts).queryByFieldRange(namespace, setName, fieldName, rangeBegin, rangeEnd, fieldNames);
+    }
+
     public static Map<String, Object> getRecordWithConfig(Map<String, Object> config, String setName, String key) {
         AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
         return service(aerospikeConfig).getRecord(aerospikeConfig.getNamespace(), setName, key);
+    }
+
+    public static Map<String, Object> getRecordFieldsWithConfig(
+            Map<String, Object> config,
+            String setName,
+            String key,
+            List<String> fieldNames) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).getRecord(aerospikeConfig.getNamespace(), setName, key, fieldNames);
     }
 
     public static Map<String, Object> putRecordWithConfig(
@@ -93,6 +141,36 @@ public final class AerospikeFunctions {
     public static List<Map<String, Object>> batchGetWithConfig(Map<String, Object> config, String setName, List<String> keys) {
         AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
         return service(aerospikeConfig).batchGet(aerospikeConfig.getNamespace(), setName, keys);
+    }
+
+    public static List<Map<String, Object>> batchGetFieldsWithConfig(
+            Map<String, Object> config,
+            String setName,
+            List<String> keys,
+            List<String> fieldNames) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).batchGet(aerospikeConfig.getNamespace(), setName, keys, fieldNames);
+    }
+
+    public static List<Map<String, Object>> queryRecordsByFieldEqualsWithConfig(
+            Map<String, Object> config,
+            String setName,
+            String fieldName,
+            Object fieldValue,
+            List<String> fieldNames) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).queryByFieldEquals(aerospikeConfig.getNamespace(), setName, fieldName, fieldValue, fieldNames);
+    }
+
+    public static List<Map<String, Object>> queryRecordsByFieldRangeWithConfig(
+            Map<String, Object> config,
+            String setName,
+            String fieldName,
+            Number rangeBegin,
+            Number rangeEnd,
+            List<String> fieldNames) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).queryByFieldRange(aerospikeConfig.getNamespace(), setName, fieldName, rangeBegin, rangeEnd, fieldNames);
     }
 
     public static Map<String, Object> getRecordWithAuth(
@@ -157,6 +235,53 @@ public final class AerospikeFunctions {
             String setName,
             List<String> keys) {
         return service(hosts, user, password).batchGet(namespace, setName, keys);
+    }
+
+    public static Map<String, Object> getRecordFieldsWithAuth(
+            String hosts,
+            String user,
+            String password,
+            String namespace,
+            String setName,
+            String key,
+            List<String> fieldNames) {
+        return service(hosts, user, password).getRecord(namespace, setName, key, fieldNames);
+    }
+
+    public static List<Map<String, Object>> batchGetFieldsWithAuth(
+            String hosts,
+            String user,
+            String password,
+            String namespace,
+            String setName,
+            List<String> keys,
+            List<String> fieldNames) {
+        return service(hosts, user, password).batchGet(namespace, setName, keys, fieldNames);
+    }
+
+    public static List<Map<String, Object>> queryRecordsByFieldEqualsWithAuth(
+            String hosts,
+            String user,
+            String password,
+            String namespace,
+            String setName,
+            String fieldName,
+            Object fieldValue,
+            List<String> fieldNames) {
+        return service(hosts, user, password).queryByFieldEquals(namespace, setName, fieldName, fieldValue, fieldNames);
+    }
+
+    public static List<Map<String, Object>> queryRecordsByFieldRangeWithAuth(
+            String hosts,
+            String user,
+            String password,
+            String namespace,
+            String setName,
+            String fieldName,
+            Number rangeBegin,
+            Number rangeEnd,
+            List<String> fieldNames) {
+        return service(hosts, user, password).queryByFieldRange(namespace, setName, fieldName, rangeBegin, rangeEnd, fieldNames);
     }
 
     public static void closeAllClients() {

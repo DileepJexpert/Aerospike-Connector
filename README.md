@@ -33,10 +33,17 @@ This repo stays as one Java JAR, but the code is organized in a cleaner package 
 - TLS, mTLS, auth, timeout, and connection-limit properties
 - basic operations:
   - `getRecord`
+  - `getRecordFields`
   - `putRecord`
   - `deleteRecord`
   - `exists`
   - `batchGet`
+  - `batchGetFields`
+  - `queryRecordsByFieldEquals`
+  - `queryRecordsByFieldRange`
+
+In Aerospike terms, what Mule teams often call a "table" is a set, and what they call "columns" are bins.
+The new projected read methods let Mule fetch only the bins it needs from a record.
 
 ## Build locally
 
@@ -62,15 +69,29 @@ Add this dependency to the Mule application's `pom.xml`:
 ```xml
 <java:invoke-static
     class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
-    method="getRecord(String, String, String, String)">
+    method="getRecordFieldsWithConfig(java.util.Map, String, String, java.util.List)">
     <java:args><![CDATA[#[{
-        arg0: "localhost:3000",
-        arg1: "test",
-        arg2: "customer",
-        arg3: attributes.uriParams.id
+        arg0: {
+            hosts: p('aerospike.hosts'),
+            namespace: p('aerospike.namespace'),
+            tlsEnabled: p('aerospike.tlsEnabled') as Boolean,
+            authEnabled: p('aerospike.authEnabled') as Boolean
+        },
+        arg1: p('aerospike.set.customer'),
+        arg2: attributes.uriParams.id,
+        arg3: ['name', 'city', 'status']
     }]]]></java:args>
 </java:invoke-static>
 ```
+
+## Query examples
+
+Primary-key reads are the fastest path. For indexed reads on non-key bins, use:
+
+- `queryRecordsByFieldEqualsWithConfig(Map config, String setName, String fieldName, Object fieldValue, List fieldNames)`
+- `queryRecordsByFieldRangeWithConfig(Map config, String setName, String fieldName, Number rangeBegin, Number rangeEnd, List fieldNames)`
+
+These query methods require a matching Aerospike secondary index on the filtered bin.
 
 ## DataWeave static method example
 

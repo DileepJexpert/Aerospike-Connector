@@ -40,11 +40,17 @@ public final class LocalSmokeTest {
         System.out.println("GET:");
         System.out.println(AerospikeFunctions.getRecordWithConfig(config, setName, key));
 
+        System.out.println("GET SELECTED FIELDS:");
+        System.out.println(AerospikeFunctions.getRecordFieldsWithConfig(config, setName, key, Arrays.asList("name", "city")));
+
         System.out.println("EXISTS:");
         System.out.println(AerospikeFunctions.existsWithConfig(config, setName, key));
 
         System.out.println("BATCH GET:");
         System.out.println(AerospikeFunctions.batchGetWithConfig(config, setName, Arrays.asList("101", "102")));
+
+        System.out.println("BATCH GET SELECTED FIELDS:");
+        System.out.println(AerospikeFunctions.batchGetFieldsWithConfig(config, setName, Arrays.asList("101", "102"), Arrays.asList("name", "visits")));
 
         AerospikeFunctions.closeAllClients();
     }
