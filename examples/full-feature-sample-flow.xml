@@ -42,6 +42,14 @@
     <flow name="put-customer-flow">
         <http:listener config-ref="httpListenerConfig" path="/customer/{id}" allowedMethods="POST" />
         <flow-ref name="buildAerospikeConfig" />
+        <ee:transform doc:name="Convert Put Payload To Java Map">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
         <java:invoke-static
             class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
             method="putRecordWithConfig(java.util.Map, String, String, java.util.Map, java.lang.Number)">
@@ -72,7 +80,7 @@
     <flow name="get-customer-fields-flow">
         <http:listener config-ref="httpListenerConfig" path="/customer/{id}/fields" allowedMethods="GET" />
         <flow-ref name="buildAerospikeConfig" />
-        <set-variable variableName="selectedFields" value="#[((attributes.queryParams.fields default '') splitBy ',') map ($ trim()) filter (!isEmpty($))]" />
+        <set-variable variableName="selectedFields" value="#[((attributes.queryParams.fields default '') splitBy ',') filter ((item) -> not isEmpty(trim(item))) map ((item) -> trim(item))]" />
         <java:invoke-static
             class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
             method="getRecordFieldsWithConfig(java.util.Map, String, String, java.util.List)">
@@ -102,6 +110,14 @@
     <flow name="batch-get-customer-flow">
         <http:listener config-ref="httpListenerConfig" path="/customer/batch" allowedMethods="POST" />
         <flow-ref name="buildAerospikeConfig" />
+        <ee:transform doc:name="Convert Batch Keys Payload To Java">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
         <java:invoke-static
             class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
             method="batchGetWithConfig(java.util.Map, String, java.util.List)">
@@ -116,6 +132,14 @@
     <flow name="batch-get-customer-fields-flow">
         <http:listener config-ref="httpListenerConfig" path="/customer/batch/fields" allowedMethods="POST" />
         <flow-ref name="buildAerospikeConfig" />
+        <ee:transform doc:name="Convert Batch Fields Payload To Java">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/java
+---
+payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
         <java:invoke-static
             class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
             method="batchGetFieldsWithConfig(java.util.Map, String, java.util.List, java.util.List)">
@@ -145,7 +169,7 @@
     <flow name="query-customer-by-city-flow">
         <http:listener config-ref="httpListenerConfig" path="/customer/query/city/{city}" allowedMethods="GET" />
         <flow-ref name="buildAerospikeConfig" />
-        <set-variable variableName="selectedFields" value="#[((attributes.queryParams.fields default 'firstName,lastName,city') splitBy ',') map ($ trim()) filter (!isEmpty($))]" />
+        <set-variable variableName="selectedFields" value="#[((attributes.queryParams.fields default 'firstName,lastName,city') splitBy ',') filter ((item) -> not isEmpty(trim(item))) map ((item) -> trim(item))]" />
         <java:invoke-static
             class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
             method="queryRecordsByFieldEqualsWithConfig(java.util.Map, String, String, Object, java.util.List)">
@@ -162,7 +186,7 @@
     <flow name="query-customer-by-visits-range-flow">
         <http:listener config-ref="httpListenerConfig" path="/customer/query/visits" allowedMethods="GET" />
         <flow-ref name="buildAerospikeConfig" />
-        <set-variable variableName="selectedFields" value="#[((attributes.queryParams.fields default 'name,city,visits') splitBy ',') map ($ trim()) filter (!isEmpty($))]" />
+        <set-variable variableName="selectedFields" value="#[((attributes.queryParams.fields default 'name,city,visits') splitBy ',') filter ((item) -> not isEmpty(trim(item))) map ((item) -> trim(item))]" />
         <java:invoke-static
             class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
             method="queryRecordsByFieldRangeWithConfig(java.util.Map, String, String, Number, Number, java.util.List)">
