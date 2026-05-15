@@ -1,0 +1,180 @@
+<!-- Example only. Import/paste into your Mule app. Requires Mule Java Module. -->
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:java="http://www.mulesoft.org/schema/mule/java"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/java http://www.mulesoft.org/schema/mule/java/current/mule-java.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <configuration-properties file="local-aerospike.properties" />
+
+    <http:listener-config name="httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+
+    <sub-flow name="buildAerospikeConfig">
+        <set-variable variableName="aerospikeConfig" value="#[{
+            hosts: p('aerospike.hosts'),
+            namespace: p('aerospike.namespace'),
+            tlsEnabled: p('aerospike.tlsEnabled') as Boolean,
+            authEnabled: p('aerospike.authEnabled') as Boolean,
+            tlsName: p('aerospike.tlsName') default null,
+            username: p('aerospike.username') default null,
+            password: p('aerospike.password') default null,
+            maxConnectionsPerNode: p('aerospike.maxConnectionsPerNode') as Number,
+            maxCommandsInProcess: p('aerospike.maxCommandsInProcess') as Number,
+            maxCommandsInQueue: p('aerospike.maxCommandsInQueue') as Number,
+            readTimeout: p('aerospike.readTimeout') as Number,
+            writeTimeout: p('aerospike.writeTimeout') as Number,
+            connectTimeout: p('aerospike.connectTimeout') as Number,
+            trustStorePath: p('aerospike.trustStorePath') default null,
+            trustStorePassword: p('aerospike.trustStorePassword') default null,
+            keyStorePath: p('aerospike.keyStorePath') default null,
+            keyStorePassword: p('aerospike.keyStorePassword') default null,
+            authMode: p('aerospike.authMode') default null
+        }]" />
+    </sub-flow>
+
+    <flow name="put-customer-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}" allowedMethods="POST" />
+        <flow-ref name="buildAerospikeConfig" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="putRecordWithConfig(java.util.Map, String, String, java.util.Map, java.lang.Number)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id,
+                arg3: payload,
+                arg4: (attributes.queryParams.ttl default 0) as Number
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <flow name="get-customer-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}" allowedMethods="GET" />
+        <flow-ref name="buildAerospikeConfig" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="getRecordWithConfig(java.util.Map, String, String)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <flow name="get-customer-fields-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}/fields" allowedMethods="GET" />
+        <flow-ref name="buildAerospikeConfig" />
+        <set-variable variableName="selectedFields" value="#[((attributes.queryParams.fields default '') splitBy ',') map ($ trim()) filter (!isEmpty($))]" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="getRecordFieldsWithConfig(java.util.Map, String, String, java.util.List)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id,
+                arg3: vars.selectedFields
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <flow name="exists-customer-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}/exists" allowedMethods="GET" />
+        <flow-ref name="buildAerospikeConfig" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="existsWithConfig(java.util.Map, String, String)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <flow name="batch-get-customer-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/batch" allowedMethods="POST" />
+        <flow-ref name="buildAerospikeConfig" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="batchGetWithConfig(java.util.Map, String, java.util.List)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: payload.keys
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <flow name="batch-get-customer-fields-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/batch/fields" allowedMethods="POST" />
+        <flow-ref name="buildAerospikeConfig" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="batchGetFieldsWithConfig(java.util.Map, String, java.util.List, java.util.List)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: payload.keys,
+                arg3: payload.fields
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <flow name="delete-customer-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}" allowedMethods="DELETE" />
+        <flow-ref name="buildAerospikeConfig" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="deleteRecordWithConfig(java.util.Map, String, String)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <flow name="query-customer-by-city-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/query/city/{city}" allowedMethods="GET" />
+        <flow-ref name="buildAerospikeConfig" />
+        <set-variable variableName="selectedFields" value="#[((attributes.queryParams.fields default 'firstName,lastName,city') splitBy ',') map ($ trim()) filter (!isEmpty($))]" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="queryRecordsByFieldEqualsWithConfig(java.util.Map, String, String, Object, java.util.List)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: 'city',
+                arg3: attributes.uriParams.city,
+                arg4: vars.selectedFields
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <flow name="query-customer-by-visits-range-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/query/visits" allowedMethods="GET" />
+        <flow-ref name="buildAerospikeConfig" />
+        <set-variable variableName="selectedFields" value="#[((attributes.queryParams.fields default 'name,city,visits') splitBy ',') map ($ trim()) filter (!isEmpty($))]" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="queryRecordsByFieldRangeWithConfig(java.util.Map, String, String, Number, Number, java.util.List)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: 'visits',
+                arg3: (attributes.queryParams.from default 0) as Number,
+                arg4: (attributes.queryParams.to default 999999) as Number,
+                arg5: vars.selectedFields
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+</mule>

@@ -275,6 +275,38 @@ aerospike.authEnabled=false
 
 When Mule runs on your laptop, connect to `localhost:3000`. Do not use the Docker container IP.
 
+## 4A. Quick Anypoint Studio test setup
+
+Use these repo files:
+
+- sample Mule flows: [full-feature-sample-flow.xml](</C:/Users/dileepkm/OneDrive/ドキュメント/New project/examples/full-feature-sample-flow.xml>)
+- local properties: [local-aerospike.properties](</C:/Users/dileepkm/OneDrive/ドキュメント/New project/examples/local-aerospike.properties>)
+
+Recommended Studio steps:
+
+1. Create a new Mule 4.9 project.
+2. Add Mule Java Module if it is not already present.
+3. Add this library dependency in the Mule app `pom.xml`.
+4. Copy `full-feature-sample-flow.xml` contents into a Mule XML config file.
+5. Copy `local-aerospike.properties` into `src/main/resources`.
+6. Start local Aerospike with Docker.
+7. Run the Mule app on port `8081`.
+8. Test each endpoint from Postman or curl.
+
+Suggested test order:
+
+1. `POST /customer/101?ttl=3600`
+2. `GET /customer/101`
+3. `GET /customer/101/fields?fields=name,city`
+4. `GET /customer/101/exists`
+5. `POST /customer/batch`
+6. `POST /customer/batch/fields`
+7. `GET /customer/query/city/Pune?fields=name,city`
+8. `GET /customer/query/visits?from=1&to=20&fields=name,visits`
+9. `DELETE /customer/101`
+
+For query endpoints, create the required Aerospike secondary indexes first.
+
 ## 5. EKS / PROD connectivity
 
 If Aerospike is deployed in EKS, the `hosts` value must be a client-reachable seed endpoint.
