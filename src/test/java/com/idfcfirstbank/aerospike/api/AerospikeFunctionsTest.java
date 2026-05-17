@@ -85,4 +85,24 @@ class AerospikeFunctionsTest {
 
         assertNotNull(method);
     }
+
+    @Test
+    void exposesFindAllWithConfigMethods() throws Exception {
+        assertNotNull(AerospikeFunctions.class.getMethod(
+                "findAllWithConfig", Map.class, String.class));
+        assertNotNull(AerospikeFunctions.class.getMethod(
+                "findAllFieldsWithConfig", Map.class, String.class, List.class));
+    }
+
+    @Test
+    void exposesCriteriaQueryWithConfigMethod() throws Exception {
+        Method method = AerospikeFunctions.class.getMethod(
+                "queryWithConfig",
+                Map.class,
+                String.class,
+                Map.class,
+                List.class);
+
+        assertNotNull(method);
+    }
 }

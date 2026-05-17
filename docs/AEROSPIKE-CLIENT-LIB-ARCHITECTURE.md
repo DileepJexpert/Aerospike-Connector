@@ -196,9 +196,12 @@ flowchart TD
 
     D --> D1["getRecordFields"]
     D --> D2["batchGetFields"]
+    D --> D3["findAllFields"]
 
     E --> E1["queryRecordsByFieldEquals"]
     E --> E2["queryRecordsByFieldRange"]
+    E --> E3["findAll"]
+    E --> E4["query (criteria map)"]
 
     F --> F1["closeAllClients"]
 ```
@@ -256,15 +259,72 @@ Projection support means:
 
 The utility supports:
 
-- equality query on an indexed bin
-- numeric range query on an indexed bin
+- equality query on an indexed bin (`queryRecordsByFieldEquals*`)
+- numeric range query on an indexed bin (`queryRecordsByFieldRange*`)
+- read all records in a set, with optional column projection (`findAll*`)
+- flexible compound predicate query via a criteria map (`query*`)
 
 Important constraints:
 
 1. Aerospike query methods are not SQL.
-2. Filtered query bins must have secondary indexes.
+2. `queryRecordsByField*` bins must have secondary indexes.
 3. Equality query currently supports non-blank `String` and integer `Number`.
 4. Range query currently supports integer numeric bounds.
+
+### 9.1 Column projection ("select some columns instead of *")
+
+Every read method accepts an optional `fieldNames` / column list:
+
+- pass a non-empty list to return only those bins
+- pass `null` or an empty list to return all bins
+
+This applies to `getRecordFields*`, `batchGetFields*`, `findAllFields*`,
+`queryRecordsByField*`, and `query*`.
+
+### 9.2 `findAll` (scan a whole set)
+
+`findAllWithConfig(config, set)` / `findAllFieldsWithConfig(config, set, cols)`
+read every record in a set (optionally projected). A scan reads the entire set;
+prefer an indexed `query*` for large production sets.
+
+### 9.3 Flexible criteria query ("findByNoun" style)
+
+`queryWithConfig(config, set, criteria, cols)` evaluates a compound predicate
+server-side via an Aerospike expression. The `criteria` map shape:
+
+```text
+{
+  match: "AND" | "OR",                 // optional, default AND
+  conditions: [
+    { field: "city",   op: "EQ",      value: "Pune" },
+    { field: "age",    op: "GT",      value: 30 },
+    { field: "score",  op: "BETWEEN", value: 10, value2: 20 },
+    { field: "status", op: "IN",      values: ["A", "B"] }
+  ],
+  index: { field: "city", op: "EQ", value: "Pune" }   // optional, see below
+}
+```
+
+- Operators: `EQ, NE, GT, GE, LT, LE, BETWEEN, IN`.
+- Ordering operators (`GT, GE, LT, LE, BETWEEN`) require numeric values.
+- `EQ`/`NE`/`IN` support `String`, integral/decimal `Number`, and `Boolean`.
+
+This maps Spring-Data-like derived queries to one call:
+
+| Repository-style intent        | criteria                                                        |
+|--------------------------------|-----------------------------------------------------------------|
+| `findByCity`                   | one `EQ` condition                                              |
+| `findByCityAndStatus`          | two conditions, `match: AND`                                    |
+| `findByAgeGreaterThan`         | one `GT` condition                                              |
+| `findByAgeBetween`             | one `BETWEEN` condition                                         |
+| `findByStatusIn`               | one `IN` condition                                              |
+| `findAll`                      | use `findAll*` instead                                          |
+
+Performance note: without the optional `index` block the query is a full
+primary-index scan with the expression applied on the server. When a bin has a
+secondary index, supply the `index` block (`EQ` or numeric `RANGE`) so the
+server narrows candidates by the index first and then applies the remaining
+conditions as the expression — recommended for DEV/SIT/PROD on large sets.
 
 Example local index creation:
 
@@ -332,6 +392,9 @@ batchGetWithConfig(...)
 batchGetFieldsWithConfig(...)
 queryRecordsByFieldEqualsWithConfig(...)
 queryRecordsByFieldRangeWithConfig(...)
+findAllWithConfig(...)
+findAllFieldsWithConfig(...)
+queryWithConfig(...)
 ```
 
 ## 13. Summary

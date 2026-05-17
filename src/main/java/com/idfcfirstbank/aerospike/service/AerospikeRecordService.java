@@ -4,13 +4,16 @@ import com.aerospike.client.AerospikeClient;
 import com.aerospike.client.Bin;
 import com.aerospike.client.Key;
 import com.aerospike.client.Record;
+import com.aerospike.client.ScanCallback;
 import com.aerospike.client.Value;
+import com.aerospike.client.exp.Expression;
 import com.aerospike.client.query.Filter;
 import com.aerospike.client.query.RecordSet;
 import com.aerospike.client.query.Statement;
 import com.aerospike.client.policy.BatchPolicy;
 import com.aerospike.client.policy.Policy;
 import com.aerospike.client.policy.QueryPolicy;
+import com.aerospike.client.policy.ScanPolicy;
 import com.aerospike.client.policy.WritePolicy;
 import com.idfcfirstbank.aerospike.config.AerospikeConfig;
 import com.idfcfirstbank.aerospike.exception.AerospikeErrorType;
@@ -27,6 +30,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public final class AerospikeRecordService {
 
@@ -188,6 +192,53 @@ public final class AerospikeRecordService {
         }
     }
 
+    public List<Map<String, Object>> findAll(String namespace, String setName, List<String> binNames) {
+        try {
+            AerospikeValidation.requireNotBlank(namespace, "namespace");
+            AerospikeValidation.requireNotBlank(setName, "setName");
+            String[] selectedBins = selectedBins(binNames);
+            final String ns = namespace.trim();
+            final String set = setName.trim();
+            final ConcurrentLinkedQueue<Map<String, Object>> collected =
+                    new ConcurrentLinkedQueue<Map<String, Object>>();
+            ScanCallback callback = (key, record) ->
+                    collected.add(AerospikeResponse.record(ns, set, responseKey(key), record));
+
+            if (selectedBins.length == 0) {
+                client().scanAll(scanPolicy(), ns, set, callback);
+            } else {
+                client().scanAll(scanPolicy(), ns, set, callback, selectedBins);
+            }
+            return new ArrayList<Map<String, Object>>(collected);
+        } catch (RuntimeException exception) {
+            throw AerospikeExceptionMapper.map("findAll", AerospikeErrorType.UNKNOWN, exception);
+        }
+    }
+
+    public List<Map<String, Object>> query(
+            String namespace,
+            String setName,
+            Map<String, Object> criteria,
+            List<String> binNames) {
+        RecordSet recordSet = null;
+        try {
+            Expression filterExp = AerospikeQuerySupport.toExpression(criteria);
+            Filter indexFilter = AerospikeQuerySupport.indexFilter(criteria);
+            Statement statement = statement(namespace, setName, binNames);
+            if (indexFilter != null) {
+                statement.setFilter(indexFilter);
+            }
+            QueryPolicy policy = queryPolicy();
+            policy.filterExp = filterExp;
+            recordSet = client().query(policy, statement);
+            return recordSetToResponses(namespace.trim(), setName.trim(), recordSet);
+        } catch (RuntimeException exception) {
+            throw AerospikeExceptionMapper.map("query", AerospikeErrorType.UNKNOWN, exception);
+        } finally {
+            close(recordSet);
+        }
+    }
+
     private AerospikeClient client() {
         return AerospikeClientProvider.getClient(config);
     }
@@ -212,6 +263,12 @@ public final class AerospikeRecordService {
 
     private QueryPolicy queryPolicy() {
         QueryPolicy policy = new QueryPolicy();
+        applyTimeouts(policy, config.getReadTimeout());
+        return policy;
+    }
+
+    private ScanPolicy scanPolicy() {
+        ScanPolicy policy = new ScanPolicy();
         applyTimeouts(policy, config.getReadTimeout());
         return policy;
     }

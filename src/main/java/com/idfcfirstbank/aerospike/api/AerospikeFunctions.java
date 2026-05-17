@@ -291,6 +291,79 @@ public final class AerospikeFunctions {
         return service(hosts, user, password).queryByFieldRange(namespace, setName, fieldName, rangeBegin, rangeEnd, fieldNames);
     }
 
+    public static List<Map<String, Object>> findAll(String hosts, String namespace, String setName) {
+        return service(hosts).findAll(namespace, setName, null);
+    }
+
+    public static List<Map<String, Object>> findAllFields(
+            String hosts,
+            String namespace,
+            String setName,
+            List<String> fieldNames) {
+        return service(hosts).findAll(namespace, setName, fieldNames);
+    }
+
+    public static List<Map<String, Object>> findAllWithConfig(Map<String, Object> config, String setName) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).findAll(aerospikeConfig.getNamespace(), setName, null);
+    }
+
+    public static List<Map<String, Object>> findAllFieldsWithConfig(
+            Map<String, Object> config,
+            String setName,
+            List<String> fieldNames) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).findAll(aerospikeConfig.getNamespace(), setName, fieldNames);
+    }
+
+    public static List<Map<String, Object>> findAllWithAuth(
+            String hosts,
+            String user,
+            String password,
+            String namespace,
+            String setName) {
+        return service(hosts, user, password).findAll(namespace, setName, null);
+    }
+
+    public static List<Map<String, Object>> findAllFieldsWithAuth(
+            String hosts,
+            String user,
+            String password,
+            String namespace,
+            String setName,
+            List<String> fieldNames) {
+        return service(hosts, user, password).findAll(namespace, setName, fieldNames);
+    }
+
+    public static List<Map<String, Object>> query(
+            String hosts,
+            String namespace,
+            String setName,
+            Map<String, Object> criteria,
+            List<String> fieldNames) {
+        return service(hosts).query(namespace, setName, criteria, fieldNames);
+    }
+
+    public static List<Map<String, Object>> queryWithConfig(
+            Map<String, Object> config,
+            String setName,
+            Map<String, Object> criteria,
+            List<String> fieldNames) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).query(aerospikeConfig.getNamespace(), setName, criteria, fieldNames);
+    }
+
+    public static List<Map<String, Object>> queryWithAuth(
+            String hosts,
+            String user,
+            String password,
+            String namespace,
+            String setName,
+            Map<String, Object> criteria,
+            List<String> fieldNames) {
+        return service(hosts, user, password).query(namespace, setName, criteria, fieldNames);
+    }
+
     public static void closeAllClients() {
         AerospikeClientProvider.closeAll();
     }

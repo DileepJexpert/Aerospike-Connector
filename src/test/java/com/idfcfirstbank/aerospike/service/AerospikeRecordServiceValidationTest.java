@@ -110,6 +110,28 @@ class AerospikeRecordServiceValidationTest {
     }
 
     @Test
+    void findAllRejectsBlankNamespaceBeforeConnection() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.findAll(" ", "customer", null));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("namespace must not be blank"));
+    }
+
+    @Test
+    void queryRejectsNullCriteriaBeforeConnection() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.query("test", "customer", null, null));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("criteria must not be null"));
+    }
+
+    @Test
     void putRecordMapsBinIntegerOverflowToValidationFailure() {
         AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
         Map<String, Object> bins = new LinkedHashMap<String, Object>();

@@ -1,0 +1,66 @@
+<!-- Example only. Paste/adapt inside your Mule app XML. Requires Mule Java Module. -->
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:java="http://www.mulesoft.org/schema/mule/java"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/java http://www.mulesoft.org/schema/mule/java/current/mule-java.xsd">
+
+    <http:listener-config name="HTTP_Listener_config">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+
+    <set-variable variableName="aerospikeConfig" value="#[{
+        hosts: p('aerospike.hosts'),
+        namespace: p('aerospike.namespace'),
+        tlsEnabled: p('aerospike.tlsEnabled') as Boolean,
+        authEnabled: p('aerospike.authEnabled') as Boolean,
+        tlsName: p('aerospike.tlsName') default null,
+        username: p('aerospike.username') default null,
+        password: p('aerospike.password') default null,
+        readTimeout: p('aerospike.readTimeout') as Number,
+        writeTimeout: p('aerospike.writeTimeout') as Number,
+        connectTimeout: p('aerospike.connectTimeout') as Number
+    }]" doc:name="Build Aerospike config" />
+
+    <!-- findAll: every record in the set, only selected columns -->
+    <flow name="list-all-customers-flow">
+        <http:listener config-ref="HTTP_Listener_config" path="/customers" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="findAllFieldsWithConfig(java.util.Map, String, java.util.List)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: ['firstName', 'lastName', 'city', 'status']
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <!-- findByNoun style: compound predicate evaluated server-side -->
+    <flow name="search-customers-flow">
+        <http:listener config-ref="HTTP_Listener_config" path="/customers/search" />
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="queryWithConfig(java.util.Map, String, java.util.Map, java.util.List)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: {
+                    match: "AND",
+                    conditions: [
+                        { field: "city",   op: "EQ",      value: attributes.queryParams.city },
+                        { field: "age",    op: "GE",      value: (attributes.queryParams.minAge default "0") as Number },
+                        { field: "status", op: "IN",      values: ["ACTIVE", "PENDING"] }
+                    ],
+                    (index: { field: "city", op: "EQ", value: attributes.queryParams.city })
+                        if (attributes.queryParams.city != null)
+                },
+                arg3: ["firstName", "lastName", "city", "age", "status"]
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+</mule>
