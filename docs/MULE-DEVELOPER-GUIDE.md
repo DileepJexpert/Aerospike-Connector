@@ -168,9 +168,407 @@ batchGetWithConfig(Map config, String setName, List keys)
 batchGetFieldsWithConfig(Map config, String setName, List keys, List fieldNames)
 queryRecordsByFieldEqualsWithConfig(Map config, String setName, String fieldName, Object fieldValue, List fieldNames)
 queryRecordsByFieldRangeWithConfig(Map config, String setName, String fieldName, Number rangeBegin, Number rangeEnd, List fieldNames)
+findAllWithConfig(Map config, String setName)
+findAllFieldsWithConfig(Map config, String setName, List fieldNames)
+queryWithConfig(Map config, String setName, Map criteria, List fieldNames)
+createRecordWithConfig(Map config, String setName, String key, Map bins)
+createRecordWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds)
+replaceRecordWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds)
+updateRecordWithConfig(Map config, String setName, String key, Map bins)
+updateRecordWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds)
+putRecordIfGenerationWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds, int expectedGeneration)
+incrementBinsWithConfig(Map config, String setName, String key, Map deltas)
+incrementBinsWithConfig(Map config, String setName, String key, Map deltas, int ttlSeconds)
+touchRecordWithConfig(Map config, String setName, String key, int ttlSeconds)
+pingWithConfig(Map config)
 ```
 
 For Mule, the no-TTL or `Number` TTL overload is often easier because DataWeave numeric values may not resolve as Java primitive `int`.
+
+Projected read example:
+
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="getRecordFieldsWithConfig(java.util.Map, String, String, java.util.List)">
+    <java:args><![CDATA[#[{
+        arg0: {
+            hosts: p('aerospike.hosts'),
+            namespace: p('aerospike.namespace'),
+            tlsEnabled: p('aerospike.tlsEnabled') as Boolean,
+            authEnabled: p('aerospike.authEnabled') as Boolean,
+            tlsName: p('aerospike.tlsName') default null,
+            username: p('aerospike.username') default null,
+            password: p('aerospike.password') default null
+        },
+        arg1: p('aerospike.set.customer'),
+        arg2: attributes.uriParams.id,
+        arg3: ['firstName', 'lastName', 'age', 'status']
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Batch projected read example:
+
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="batchGetFieldsWithConfig(java.util.Map, String, java.util.List, java.util.List)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: ['1001', '1002', '1003'],
+        arg3: ['firstName', 'city']
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Query example:
+
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="queryRecordsByFieldEqualsWithConfig(java.util.Map, String, String, Object, java.util.List)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: 'city',
+        arg3: 'Mumbai',
+        arg4: ['firstName', 'lastName', 'city']
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Range query example:
+
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="queryRecordsByFieldRangeWithConfig(java.util.Map, String, String, Number, Number, java.util.List)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: 'age',
+        arg3: 25,
+        arg4: 40,
+        arg5: ['firstName', 'age', 'city']
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Important:
+
+1. `queryRecordsByFieldEqualsWithConfig` and `queryRecordsByFieldRangeWithConfig` need an Aerospike secondary index on the filtered bin.
+2. Equality queries currently support non-blank `String` and integer `Number` values.
+3. Range queries currently support integer `Number` values only.
+
+Example AQL index creation for local testing:
+
+```sql
+CREATE INDEX idx_customer_city ON test.customer (city) STRING
+CREATE INDEX idx_customer_age ON test.customer (age) NUMERIC
+```
+
+## 3A. New write and maintenance operations
+
+These operations were added to give Mule teams full control over how records are written. Choose the right one for your use case.
+
+### Which write method to use?
+
+| You want to…                               | Method to call                  |
+|--------------------------------------------|---------------------------------|
+| Insert or overwrite (upsert)               | `putRecordWithConfig`           |
+| Insert only — fail if already exists       | `createRecordWithConfig`        |
+| Replace all bins — fail if not exists      | `replaceRecordWithConfig`       |
+| Update some bins — fail if not exists      | `updateRecordWithConfig`        |
+| Write only if nobody changed it since read | `putRecordIfGenerationWithConfig` |
+| Add/subtract from a counter bin atomically | `incrementBinsWithConfig`       |
+| Reset TTL without rewriting bins           | `touchRecordWithConfig`         |
+| Check if the cluster is reachable          | `pingWithConfig`                |
+
+---
+
+### createRecord — insert only
+
+Use this when the record must not exist yet (e.g. account registration).  
+Throws `RECORD_ALREADY_EXISTS` if the key is already in Aerospike.
+
+Method signature:
+```text
+createRecordWithConfig(Map config, String setName, String key, Map bins)
+createRecordWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds)
+```
+
+Arguments:
+- `arg0` — config map (same shape as all other methods)
+- `arg1` — set name (e.g. `"customer"`)
+- `arg2` — record key (string, e.g. account ID)
+- `arg3` — bins map (key = bin name, value = bin value)
+- `arg4` — TTL in seconds (`0` = namespace default, `-1` = never expire)
+
+Mule example:
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="createRecordWithConfig(java.util.Map, String, String, java.util.Map)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: attributes.uriParams.id,
+        arg3: payload
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Error handling tip: catch `RECORD_ALREADY_EXISTS` and return HTTP 409 Conflict.
+
+---
+
+### replaceRecord — replace all bins
+
+Use this when you want to completely overwrite a record, removing any bins not present in your new payload.  
+Throws `KEY_NOT_FOUND` if the record does not exist.
+
+Method signature:
+```text
+replaceRecordWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds)
+```
+
+Arguments:
+- `arg0` — config map
+- `arg1` — set name
+- `arg2` — record key
+- `arg3` — bins map — any bins NOT in this map are deleted from the record
+- `arg4` — TTL in seconds
+
+Mule example:
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="replaceRecordWithConfig(java.util.Map, String, String, java.util.Map, int)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: attributes.uriParams.id,
+        arg3: payload,
+        arg4: 3600
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+---
+
+### updateRecord — merge bins (record must exist)
+
+Use this when you want to update only the bins you supply and leave other bins untouched.  
+Throws `KEY_NOT_FOUND` if the record does not exist.  
+This is different from `putRecord` (upsert) — `updateRecord` will not create a new record.
+
+Method signature:
+```text
+updateRecordWithConfig(Map config, String setName, String key, Map bins)
+updateRecordWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds)
+```
+
+Arguments:
+- `arg0` — config map
+- `arg1` — set name
+- `arg2` — record key
+- `arg3` — bins to update; other bins on the record are untouched
+- `arg4` — TTL in seconds (only the no-TTL overload uses namespace default)
+
+Mule example — update only the `status` bin:
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="updateRecordWithConfig(java.util.Map, String, String, java.util.Map)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: attributes.uriParams.id,
+        arg3: { "status": payload.status }
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+---
+
+### putRecordIfGeneration — optimistic locking (CAS)
+
+Use this when two Mule workers might update the same record at the same time and you must not overwrite each other's changes.
+
+**How it works:**
+1. Read the record with `getRecordWithConfig` — the response includes a `generation` number.
+2. Modify the bins in your Mule flow.
+3. Call `putRecordIfGenerationWithConfig` with the `generation` you read.
+4. Aerospike checks if the record's current generation still matches. If someone else wrote the record between your read and write, the generations differ and Aerospike rejects the write with `GENERATION_MISMATCH`.
+
+Method signature:
+```text
+putRecordIfGenerationWithConfig(Map config, String setName, String key, Map bins, int ttlSeconds, int expectedGeneration)
+```
+
+Arguments:
+- `arg0` — config map
+- `arg1` — set name
+- `arg2` — record key
+- `arg3` — bins map (full set of bins to write)
+- `arg4` — TTL in seconds
+- `arg5` — generation value read from the earlier `getRecord` response (`payload.generation`)
+
+Mule example:
+```xml
+<!-- Step 1: read -->
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="getRecordWithConfig(java.util.Map, String, String)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: attributes.uriParams.id
+    }]]]></java:args>
+</java:invoke-static>
+<set-variable variableName="generation" value="#[payload.generation]" />
+<set-variable variableName="existingRecord" value="#[payload]" />
+
+<!-- Step 2: conditional write -->
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="putRecordIfGenerationWithConfig(java.util.Map, String, String, java.util.Map, int, int)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: p('aerospike.set.customer'),
+        arg2: attributes.uriParams.id,
+        arg3: { "status": "INACTIVE", "updatedAt": now() as String },
+        arg4: 0,
+        arg5: vars.generation as Number
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Error handling tip: catch `GENERATION_MISMATCH` and retry from step 1, or return HTTP 409 Conflict.
+
+---
+
+### incrementBins — atomic counter
+
+Use this to increment or decrement integer bins without a read-modify-write cycle.  
+Aerospike performs this atomically on the server — no race conditions even if multiple Mule workers call this at the same time.
+
+Common use cases: page view counters, API call counts, inventory adjustments.
+
+Method signature:
+```text
+incrementBinsWithConfig(Map config, String setName, String key, Map deltas)
+incrementBinsWithConfig(Map config, String setName, String key, Map deltas, int ttlSeconds)
+```
+
+Arguments:
+- `arg0` — config map
+- `arg1` — set name
+- `arg2` — record key
+- `arg3` — deltas map: bin name → amount to add (positive or negative integer). The bin is created starting from the delta value if it does not exist yet.
+- `arg4` — TTL in seconds (optional overload)
+
+Mule example — increment `pageViews` by 1 and `apiCalls` by 1:
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="incrementBinsWithConfig(java.util.Map, String, String, java.util.Map)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: "sessions",
+        arg2: vars.sessionId,
+        arg3: { "pageViews": 1, "apiCalls": 1 }
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Mule example — decrement `stock` by the order quantity:
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="incrementBinsWithConfig(java.util.Map, String, String, java.util.Map)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: "inventory",
+        arg2: payload.productId,
+        arg3: { "stock": -(payload.quantity as Number) }
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+Response includes the updated bin values so you can check the new count in the same flow step.
+
+---
+
+### touchRecord — reset TTL only
+
+Use this to extend a record's expiry without rewriting any data.  
+Throws `KEY_NOT_FOUND` if the record does not exist.
+
+Common use cases: session keep-alive, cache entry refresh.
+
+Method signature:
+```text
+touchRecordWithConfig(Map config, String setName, String key, int ttlSeconds)
+```
+
+Arguments:
+- `arg0` — config map
+- `arg1` — set name
+- `arg2` — record key
+- `arg3` — new TTL in seconds (`0` = namespace default, `-1` = never expire)
+
+Mule example — reset session TTL on each API call:
+```xml
+<java:invoke-static
+    class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+    method="touchRecordWithConfig(java.util.Map, String, String, int)">
+    <java:args><![CDATA[#[{
+        arg0: vars.aerospikeConfig,
+        arg1: "sessions",
+        arg2: attributes.headers.sessionId,
+        arg3: 1800
+    }]]]></java:args>
+</java:invoke-static>
+```
+
+---
+
+### ping — health check
+
+Use this in a Mule health-check flow or startup validation to confirm Aerospike is reachable.
+
+Method signature:
+```text
+pingWithConfig(Map config)
+```
+
+Arguments:
+- `arg0` — config map (only `hosts` and connection properties are needed; namespace is not required)
+
+Response:
+```json
+{ "connected": true, "nodes": ["BB9040011AC4202", "BB9040011AC4203"] }
+```
+
+Mule example:
+```xml
+<flow name="health-check-flow">
+    <http:listener config-ref="httpListenerConfig" path="/health/aerospike" allowedMethods="GET" />
+    <flow-ref name="buildAerospikeConfig" />
+    <java:invoke-static
+        class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+        method="pingWithConfig(java.util.Map)">
+        <java:args><![CDATA[#[{ arg0: vars.aerospikeConfig }]]]></java:args>
+    </java:invoke-static>
+</flow>
+```
+
+If `connected` is `false` or the call throws `CONNECTION_FAILED`, Aerospike is not reachable from this Mule instance.
+
+---
 
 Projected read example:
 

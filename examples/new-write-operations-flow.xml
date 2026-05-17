@@ -1,0 +1,250 @@
+<!--
+  Example flows for new write and maintenance operations added in this library version.
+  Paste/adapt these flows into your Mule app XML.
+  Requires: Mule Java Module, HTTP Connector, EE Core (for ee:transform).
+
+  Assumes you have a sub-flow named buildAerospikeConfig that sets vars.aerospikeConfig.
+  See full-feature-sample-flow.xml for that sub-flow.
+-->
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:java="http://www.mulesoft.org/schema/mule/java"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/java http://www.mulesoft.org/schema/mule/java/current/mule-java.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+    <configuration-properties file="local-aerospike.properties" />
+
+    <http:listener-config name="httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+
+    <!-- =====================================================================
+         createRecord — insert only, fails with RECORD_ALREADY_EXISTS if key exists
+         POST /customer/{id}/create   body: JSON object with bin values
+         ===================================================================== -->
+    <flow name="create-customer-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}/create" allowedMethods="POST" />
+        <flow-ref name="buildAerospikeConfig" />
+        <ee:transform doc:name="Payload to Java">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0 output application/java --- payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="createRecordWithConfig(java.util.Map, String, String, java.util.Map)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id,
+                arg3: payload
+            }]]]></java:args>
+        </java:invoke-static>
+        <!-- If you need a TTL use the 5-arg overload instead:
+             method="createRecordWithConfig(java.util.Map, String, String, java.util.Map, int)"
+             arg4: (attributes.queryParams.ttl default 3600) as Number
+        -->
+        <error-handler>
+            <on-error-continue type="JAVA:RUNTIME">
+                <set-variable variableName="errorType"
+                    value="#[error.cause.errorType as String default 'UNKNOWN']" />
+                <!-- return 409 if the key already exists -->
+                <set-payload value="#[{ 'error': error.cause.message, 'errorType': vars.errorType }]" />
+            </on-error-continue>
+        </error-handler>
+    </flow>
+
+    <!-- =====================================================================
+         replaceRecord — overwrite ALL bins, fails if record not found
+         PUT /customer/{id}/replace   body: JSON object with the complete set of bins
+         Any bin not included in the body is DELETED from the record.
+         ===================================================================== -->
+    <flow name="replace-customer-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}/replace" allowedMethods="PUT" />
+        <flow-ref name="buildAerospikeConfig" />
+        <ee:transform doc:name="Payload to Java">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0 output application/java --- payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="replaceRecordWithConfig(java.util.Map, String, String, java.util.Map, int)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id,
+                arg3: payload,
+                arg4: (attributes.queryParams.ttl default 0) as Number
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <!-- =====================================================================
+         updateRecord — merge only supplied bins, fails if record not found
+         PATCH /customer/{id}   body: JSON object with only the bins to change
+         Bins not in the body are left untouched on the record.
+         ===================================================================== -->
+    <flow name="update-customer-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}" allowedMethods="PATCH" />
+        <flow-ref name="buildAerospikeConfig" />
+        <ee:transform doc:name="Payload to Java">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0 output application/java --- payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="updateRecordWithConfig(java.util.Map, String, String, java.util.Map)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id,
+                arg3: payload
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <!-- =====================================================================
+         putRecordIfGeneration — optimistic locking (CAS)
+         PUT /customer/{id}/cas
+         Step 1: read the record, capture its generation number.
+         Step 2: write back with that generation — Aerospike rejects if modified.
+
+         body: { "bins": { ... }, "generation": 5 }
+         ===================================================================== -->
+    <flow name="cas-update-customer-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}/cas" allowedMethods="PUT" />
+        <flow-ref name="buildAerospikeConfig" />
+        <ee:transform doc:name="Payload to Java">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0 output application/java --- payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <!--
+            Method: putRecordIfGenerationWithConfig
+            arg0 = config map
+            arg1 = set name
+            arg2 = record key (string)
+            arg3 = bins map to write
+            arg4 = TTL in seconds (0 = namespace default)
+            arg5 = expectedGeneration (integer) — read from a previous getRecord call's "generation" field
+        -->
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="putRecordIfGenerationWithConfig(java.util.Map, String, String, java.util.Map, int, int)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id,
+                arg3: payload.bins,
+                arg4: 0,
+                arg5: payload.generation as Number
+            }]]]></java:args>
+        </java:invoke-static>
+        <!-- On GENERATION_MISMATCH: the record was changed between read and write. -->
+        <!-- Retry from the read, or return 409 Conflict. -->
+        <error-handler>
+            <on-error-continue type="JAVA:RUNTIME">
+                <set-payload value="#[{ 'error': error.cause.message, 'errorType': error.cause.errorType as String default 'UNKNOWN' }]" />
+            </on-error-continue>
+        </error-handler>
+    </flow>
+
+    <!-- =====================================================================
+         incrementBins — atomic counter, no read needed
+         POST /customer/{id}/increment
+         body: { "pageViews": 1, "apiCalls": 1, "balance": -100 }
+         Values can be positive (increment) or negative (decrement).
+         Returns the updated record with the new bin values.
+         ===================================================================== -->
+    <flow name="increment-customer-counters-flow">
+        <http:listener config-ref="httpListenerConfig" path="/customer/{id}/increment" allowedMethods="POST" />
+        <flow-ref name="buildAerospikeConfig" />
+        <ee:transform doc:name="Payload to Java">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0 output application/java --- payload]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+        <!--
+            Method: incrementBinsWithConfig
+            arg0 = config map
+            arg1 = set name
+            arg2 = record key (string)
+            arg3 = deltas map: bin name -> number to add (positive or negative)
+            Response includes the updated values of all incremented bins.
+        -->
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="incrementBinsWithConfig(java.util.Map, String, String, java.util.Map)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: p('aerospike.set.customer'),
+                arg2: attributes.uriParams.id,
+                arg3: payload
+            }]]]></java:args>
+        </java:invoke-static>
+        <!-- With TTL reset use the 5-arg overload:
+             method="incrementBinsWithConfig(java.util.Map, String, String, java.util.Map, int)"
+             arg4: 3600
+        -->
+    </flow>
+
+    <!-- =====================================================================
+         touchRecord — reset TTL without rewriting any bin data
+         POST /session/{id}/touch?ttl=1800
+         Fails with KEY_NOT_FOUND if the record does not exist.
+         ===================================================================== -->
+    <flow name="touch-session-flow">
+        <http:listener config-ref="httpListenerConfig" path="/session/{id}/touch" allowedMethods="POST" />
+        <flow-ref name="buildAerospikeConfig" />
+        <!--
+            Method: touchRecordWithConfig
+            arg0 = config map
+            arg1 = set name
+            arg2 = record key (string)
+            arg3 = new TTL in seconds
+                   0  = use namespace default-ttl
+                  -1  = never expire
+                  >0  = expire after this many seconds
+        -->
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="touchRecordWithConfig(java.util.Map, String, String, int)">
+            <java:args><![CDATA[#[{
+                arg0: vars.aerospikeConfig,
+                arg1: "sessions",
+                arg2: attributes.uriParams.id,
+                arg3: (attributes.queryParams.ttl default 1800) as Number
+            }]]]></java:args>
+        </java:invoke-static>
+    </flow>
+
+    <!-- =====================================================================
+         ping — health check
+         GET /health/aerospike
+         Returns: { "connected": true, "nodes": ["nodeName1", "nodeName2"] }
+         Does not open a new connection — queries the already-cached client.
+         ===================================================================== -->
+    <flow name="aerospike-health-check-flow">
+        <http:listener config-ref="httpListenerConfig" path="/health/aerospike" allowedMethods="GET" />
+        <flow-ref name="buildAerospikeConfig" />
+        <!--
+            Method: pingWithConfig
+            arg0 = config map (only hosts + connection settings are used;
+                   namespace is not needed for a ping but you can pass the full config)
+        -->
+        <java:invoke-static
+            class="com.idfcfirstbank.aerospike.api.AerospikeFunctions"
+            method="pingWithConfig(java.util.Map)">
+            <java:args><![CDATA[#[{ arg0: vars.aerospikeConfig }]]]></java:args>
+        </java:invoke-static>
+        <!-- payload is now: { "connected": true/false, "nodes": ["...", "..."] } -->
+    </flow>
+
+</mule>

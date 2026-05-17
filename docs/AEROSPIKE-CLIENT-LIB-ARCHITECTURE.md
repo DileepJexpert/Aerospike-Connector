@@ -181,29 +181,36 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A["AerospikeFunctions"] --> B["Single Record"]
-    A --> C["Batch"]
-    A --> D["Projection"]
+    A["AerospikeFunctions"] --> B["Single Record Read"]
+    A --> C["Batch Read"]
+    A --> D["Write"]
     A --> E["Indexed Query"]
     A --> F["Maintenance"]
 
     B --> B1["getRecord"]
-    B --> B2["putRecord"]
-    B --> B3["deleteRecord"]
-    B --> B4["exists"]
+    B --> B2["getRecordFields"]
+    B --> B3["exists"]
 
     C --> C1["batchGet"]
+    C --> C2["batchGetFields"]
 
-    D --> D1["getRecordFields"]
-    D --> D2["batchGetFields"]
-    D --> D3["findAllFields"]
+    D --> D1["putRecord — upsert"]
+    D --> D2["createRecord — insert only"]
+    D --> D3["replaceRecord — replace all bins"]
+    D --> D4["updateRecord — merge bins"]
+    D --> D5["putRecordIfGeneration — CAS write"]
+    D --> D6["incrementBins — atomic counter"]
+    D --> D7["touchRecord — reset TTL"]
+    D --> D8["deleteRecord"]
 
     E --> E1["queryRecordsByFieldEquals"]
     E --> E2["queryRecordsByFieldRange"]
     E --> E3["findAll"]
-    E --> E4["query (criteria map)"]
+    E --> E4["findAllFields"]
+    E --> E5["query — criteria map"]
 
-    F --> F1["closeAllClients"]
+    F --> F1["ping — health check"]
+    F --> F2["closeAllClients"]
 ```
 
 ## 7. Environment Configuration Flow
@@ -345,6 +352,8 @@ flowchart TD
     B -->|Namespace| G["INVALID_NAMESPACE"]
     B -->|Missing Key| H["KEY_NOT_FOUND"]
     B -->|Write/Delete| I["WRITE_FAILURE / DELETE_FAILURE"]
+    B -->|Key already exists| K["RECORD_ALREADY_EXISTS"]
+    B -->|CAS mismatch| L["GENERATION_MISMATCH"]
     C --> J["AerospikeOperationException"]
     D --> J
     E --> J
@@ -352,7 +361,22 @@ flowchart TD
     G --> J
     H --> J
     I --> J
+    K --> J
+    L --> J
 ```
+
+| Error Type | Thrown by | Recommended Mule action |
+|---|---|---|
+| `VALIDATION_FAILED` | Any method | Fix the request — bad argument |
+| `CONNECTION_FAILED` | Any method | Retry with backoff; alert ops |
+| `TIMEOUT` | Any method | Retry; check Aerospike cluster load |
+| `AUTHENTICATION_FAILED` | Any method | Fix credentials or auth config |
+| `INVALID_NAMESPACE` | Any method | Fix namespace in config |
+| `KEY_NOT_FOUND` | `replaceRecord`, `updateRecord`, `touchRecord` | Return 404 Not Found |
+| `RECORD_ALREADY_EXISTS` | `createRecord` | Return 409 Conflict |
+| `GENERATION_MISMATCH` | `putRecordIfGeneration` | Return 409 Conflict; retry from read |
+| `WRITE_FAILURE` | `putRecord`, `createRecord`, etc. | Log and alert |
+| `DELETE_FAILURE` | `deleteRecord` | Log and alert |
 
 ## 11. Runtime Characteristics
 
@@ -384,17 +408,25 @@ Preferred Mule pattern:
 Recommended method family for Mule:
 
 ```text
-putRecordWithConfig(...)
 getRecordWithConfig(...)
 getRecordFieldsWithConfig(...)
 existsWithConfig(...)
 batchGetWithConfig(...)
 batchGetFieldsWithConfig(...)
+putRecordWithConfig(...)           -- upsert (insert or overwrite)
+createRecordWithConfig(...)        -- insert only, fails if exists
+replaceRecordWithConfig(...)       -- overwrite all bins, fails if not exists
+updateRecordWithConfig(...)        -- merge bins, fails if not exists
+putRecordIfGenerationWithConfig(...)  -- optimistic locking (CAS)
+incrementBinsWithConfig(...)       -- atomic counter increment/decrement
+touchRecordWithConfig(...)         -- reset TTL without rewriting bins
+deleteRecordWithConfig(...)
 queryRecordsByFieldEqualsWithConfig(...)
 queryRecordsByFieldRangeWithConfig(...)
 findAllWithConfig(...)
 findAllFieldsWithConfig(...)
 queryWithConfig(...)
+pingWithConfig(...)                -- health check
 ```
 
 ## 13. Summary
