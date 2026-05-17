@@ -7,6 +7,8 @@ import com.aerospike.client.policy.ClientPolicy;
 import com.aerospike.client.policy.TlsPolicy;
 import com.idfcfirstbank.aerospike.config.AerospikeConfig;
 import com.idfcfirstbank.aerospike.util.AerospikeValidation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -19,6 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public final class AerospikeClientProvider {
+
+    private static final Logger LOG = LoggerFactory.getLogger(AerospikeClientProvider.class);
 
     private static final int DEFAULT_PORT = 3000;
     private static final int DEFAULT_TLS_PORT = 4333;
@@ -43,6 +47,8 @@ public final class AerospikeClientProvider {
      * on the same configuration.
      */
     public static void closeAll() {
+        LOG.info("Closing all cached Aerospike clients");
+        int closed = 0;
         for (String key : CLIENTS.keySet()) {
             AerospikeClient client = CLIENTS.remove(key);
             if (client == null) {
@@ -50,10 +56,12 @@ public final class AerospikeClientProvider {
             }
             try {
                 client.close();
+                closed++;
             } catch (RuntimeException ignored) {
                 // Best effort shutdown.
             }
         }
+        LOG.info("Closed {} Aerospike client(s)", closed);
     }
 
     private static AerospikeClient createClient(AerospikeConfig config) {
@@ -76,7 +84,10 @@ public final class AerospikeClientProvider {
             policy.tlsPolicy = tlsPolicy(config);
         }
 
-        return new AerospikeClient(policy, parseHosts(config));
+        AerospikeClient client = new AerospikeClient(policy, parseHosts(config));
+        LOG.info("Created Aerospike client for hosts={} namespace={} tls={} auth={}",
+                config.getHosts(), config.getNamespace(), config.isTlsEnabled(), config.isAuthEnabled());
+        return client;
     }
 
     private static TlsPolicy tlsPolicy(AerospikeConfig config) {

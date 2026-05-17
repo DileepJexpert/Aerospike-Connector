@@ -39,6 +39,12 @@ public final class AerospikeExceptionMapper {
             if (resultCode == ResultCode.KEY_NOT_FOUND_ERROR) {
                 return new AerospikeOperationException(operation, AerospikeErrorType.KEY_NOT_FOUND, "Aerospike " + operation + " record not found", exception);
             }
+            if (resultCode == ResultCode.KEY_EXISTS_ERROR) {
+                return new AerospikeOperationException(operation, AerospikeErrorType.RECORD_ALREADY_EXISTS, "Aerospike " + operation + " record already exists", exception);
+            }
+            if (resultCode == ResultCode.GENERATION_ERROR) {
+                return new AerospikeOperationException(operation, AerospikeErrorType.GENERATION_MISMATCH, "Aerospike " + operation + " generation check failed (record was modified concurrently)", exception);
+            }
             if (resultCode == ResultCode.INVALID_NAMESPACE) {
                 return new AerospikeOperationException(operation, AerospikeErrorType.INVALID_NAMESPACE, "Aerospike " + operation + " namespace is invalid", exception);
             }

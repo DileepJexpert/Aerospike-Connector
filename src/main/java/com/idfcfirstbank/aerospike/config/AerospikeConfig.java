@@ -30,6 +30,7 @@ public final class AerospikeConfig {
     private final String keyStorePath;
     private final String keyStorePassword;
     private final String authMode;
+    private final boolean sendKey;
 
     public AerospikeConfig(String hosts) {
         this(builder().hosts(hosts));
@@ -71,6 +72,7 @@ public final class AerospikeConfig {
         this.keyStorePath = trimToNull(builder.keyStorePath);
         this.keyStorePassword = trimToNull(builder.keyStorePassword);
         this.authMode = trimToNull(builder.authMode);
+        this.sendKey = builder.sendKey;
     }
 
     public static Builder builder() {
@@ -108,6 +110,7 @@ public final class AerospikeConfig {
                 .keyStorePath(stringValue(values, "keyStorePath", null))
                 .keyStorePassword(stringValue(values, "keyStorePassword", null))
                 .authMode(stringValue(values, "authMode", null))
+                .sendKey(booleanValue(values, "sendKey", true))
                 .build();
     }
 
@@ -184,6 +187,15 @@ public final class AerospikeConfig {
     }
 
     /**
+     * When true the user key is stored alongside the record on writes and
+     * requested back on reads/queries/scans, so query and findAll results
+     * carry the real key instead of only the record digest. Defaults to true.
+     */
+    public boolean isSendKey() {
+        return sendKey;
+    }
+
+    /**
      * Cache key identifying a unique effective client configuration. Secret
      * material (user password, trust/key store passwords) is folded into a
      * one-way fingerprint so that rotating any secret produces a distinct key
@@ -205,6 +217,7 @@ public final class AerospikeConfig {
                 + "|" + nullToEmpty(trustStorePath)
                 + "|" + nullToEmpty(keyStorePath)
                 + "|" + nullToEmpty(authMode)
+                + "|" + sendKey
                 + "|" + secretFingerprint();
     }
 
@@ -347,7 +360,8 @@ public final class AerospikeConfig {
                 && Objects.equals(trustStorePassword, that.trustStorePassword)
                 && Objects.equals(keyStorePath, that.keyStorePath)
                 && Objects.equals(keyStorePassword, that.keyStorePassword)
-                && Objects.equals(authMode, that.authMode);
+                && Objects.equals(authMode, that.authMode)
+                && sendKey == that.sendKey;
     }
 
     @Override
@@ -370,7 +384,8 @@ public final class AerospikeConfig {
                 trustStorePassword,
                 keyStorePath,
                 keyStorePassword,
-                authMode);
+                authMode,
+                sendKey);
     }
 
     public static final class Builder {
@@ -392,6 +407,7 @@ public final class AerospikeConfig {
         private String keyStorePath;
         private String keyStorePassword;
         private String authMode;
+        private boolean sendKey = true;
 
         private Builder() {
         }
@@ -494,6 +510,11 @@ public final class AerospikeConfig {
 
         public Builder authMode(String authMode) {
             this.authMode = authMode;
+            return this;
+        }
+
+        public Builder sendKey(boolean sendKey) {
+            this.sendKey = sendKey;
             return this;
         }
 

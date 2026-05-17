@@ -364,6 +364,182 @@ public final class AerospikeFunctions {
         return service(hosts, user, password).query(namespace, setName, criteria, fieldNames);
     }
 
+    // -------------------------------------------------------------------------
+    // createRecord
+    // -------------------------------------------------------------------------
+
+    public static Map<String, Object> createRecord(
+            String hosts, String namespace, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
+        return service(hosts).createRecord(namespace, setName, key, bins, ttlSeconds);
+    }
+
+    public static Map<String, Object> createRecordWithConfig(
+            Map<String, Object> config, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).createRecord(aerospikeConfig.getNamespace(), setName, key, bins, ttlSeconds);
+    }
+
+    public static Map<String, Object> createRecordWithConfig(
+            Map<String, Object> config, String setName, String key, Map<String, Object> bins) {
+        return createRecordWithConfig(config, setName, key, bins, 0);
+    }
+
+    public static Map<String, Object> createRecordWithAuth(
+            String hosts, String user, String password,
+            String namespace, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
+        return service(hosts, user, password).createRecord(namespace, setName, key, bins, ttlSeconds);
+    }
+
+    // -------------------------------------------------------------------------
+    // replaceRecord
+    // -------------------------------------------------------------------------
+
+    public static Map<String, Object> replaceRecord(
+            String hosts, String namespace, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
+        return service(hosts).replaceRecord(namespace, setName, key, bins, ttlSeconds);
+    }
+
+    public static Map<String, Object> replaceRecordWithConfig(
+            Map<String, Object> config, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).replaceRecord(aerospikeConfig.getNamespace(), setName, key, bins, ttlSeconds);
+    }
+
+    public static Map<String, Object> replaceRecordWithConfig(
+            Map<String, Object> config, String setName, String key, Map<String, Object> bins) {
+        return replaceRecordWithConfig(config, setName, key, bins, 0);
+    }
+
+    public static Map<String, Object> replaceRecordWithAuth(
+            String hosts, String user, String password,
+            String namespace, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
+        return service(hosts, user, password).replaceRecord(namespace, setName, key, bins, ttlSeconds);
+    }
+
+    // -------------------------------------------------------------------------
+    // updateRecord
+    // -------------------------------------------------------------------------
+
+    public static Map<String, Object> updateRecord(
+            String hosts, String namespace, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
+        return service(hosts).updateRecord(namespace, setName, key, bins, ttlSeconds);
+    }
+
+    public static Map<String, Object> updateRecordWithConfig(
+            Map<String, Object> config, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).updateRecord(aerospikeConfig.getNamespace(), setName, key, bins, ttlSeconds);
+    }
+
+    public static Map<String, Object> updateRecordWithConfig(
+            Map<String, Object> config, String setName, String key, Map<String, Object> bins) {
+        return updateRecordWithConfig(config, setName, key, bins, 0);
+    }
+
+    public static Map<String, Object> updateRecordWithAuth(
+            String hosts, String user, String password,
+            String namespace, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
+        return service(hosts, user, password).updateRecord(namespace, setName, key, bins, ttlSeconds);
+    }
+
+    // -------------------------------------------------------------------------
+    // putRecordIfGeneration (optimistic locking / CAS)
+    // -------------------------------------------------------------------------
+
+    public static Map<String, Object> putRecordIfGeneration(
+            String hosts, String namespace, String setName, String key,
+            Map<String, Object> bins, int ttlSeconds, int expectedGeneration) {
+        return service(hosts).putRecordIfGeneration(namespace, setName, key, bins, ttlSeconds, expectedGeneration);
+    }
+
+    public static Map<String, Object> putRecordIfGenerationWithConfig(
+            Map<String, Object> config, String setName, String key,
+            Map<String, Object> bins, int ttlSeconds, int expectedGeneration) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).putRecordIfGeneration(
+                aerospikeConfig.getNamespace(), setName, key, bins, ttlSeconds, expectedGeneration);
+    }
+
+    public static Map<String, Object> putRecordIfGenerationWithAuth(
+            String hosts, String user, String password,
+            String namespace, String setName, String key,
+            Map<String, Object> bins, int ttlSeconds, int expectedGeneration) {
+        return service(hosts, user, password).putRecordIfGeneration(
+                namespace, setName, key, bins, ttlSeconds, expectedGeneration);
+    }
+
+    // -------------------------------------------------------------------------
+    // incrementBins (atomic counter increment)
+    // -------------------------------------------------------------------------
+
+    public static Map<String, Object> incrementBins(
+            String hosts, String namespace, String setName, String key,
+            Map<String, Object> deltas, int ttlSeconds) {
+        return service(hosts).incrementBins(namespace, setName, key, deltas, ttlSeconds);
+    }
+
+    public static Map<String, Object> incrementBinsWithConfig(
+            Map<String, Object> config, String setName, String key,
+            Map<String, Object> deltas, int ttlSeconds) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).incrementBins(
+                aerospikeConfig.getNamespace(), setName, key, deltas, ttlSeconds);
+    }
+
+    public static Map<String, Object> incrementBinsWithConfig(
+            Map<String, Object> config, String setName, String key, Map<String, Object> deltas) {
+        return incrementBinsWithConfig(config, setName, key, deltas, 0);
+    }
+
+    public static Map<String, Object> incrementBinsWithAuth(
+            String hosts, String user, String password,
+            String namespace, String setName, String key,
+            Map<String, Object> deltas, int ttlSeconds) {
+        return service(hosts, user, password).incrementBins(namespace, setName, key, deltas, ttlSeconds);
+    }
+
+    // -------------------------------------------------------------------------
+    // touchRecord (reset TTL without rewriting bins)
+    // -------------------------------------------------------------------------
+
+    public static Map<String, Object> touchRecord(
+            String hosts, String namespace, String setName, String key, int ttlSeconds) {
+        return service(hosts).touchRecord(namespace, setName, key, ttlSeconds);
+    }
+
+    public static Map<String, Object> touchRecordWithConfig(
+            Map<String, Object> config, String setName, String key, int ttlSeconds) {
+        AerospikeConfig aerospikeConfig = AerospikeConfig.fromMap(config);
+        return service(aerospikeConfig).touchRecord(aerospikeConfig.getNamespace(), setName, key, ttlSeconds);
+    }
+
+    public static Map<String, Object> touchRecordWithAuth(
+            String hosts, String user, String password,
+            String namespace, String setName, String key, int ttlSeconds) {
+        return service(hosts, user, password).touchRecord(namespace, setName, key, ttlSeconds);
+    }
+
+    // -------------------------------------------------------------------------
+    // ping / health check
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns cluster connectivity information: {@code connected} (boolean) and
+     * {@code nodes} (list of node names). No new network connection is opened;
+     * the method queries the already-cached client's node list.
+     */
+    public static Map<String, Object> ping(String hosts) {
+        return service(hosts).ping();
+    }
+
+    public static Map<String, Object> pingWithConfig(Map<String, Object> config) {
+        return service(AerospikeConfig.fromMap(config)).ping();
+    }
+
+    public static Map<String, Object> pingWithAuth(String hosts, String user, String password) {
+        return service(hosts, user, password).ping();
+    }
+
     public static void closeAllClients() {
         AerospikeClientProvider.closeAll();
     }

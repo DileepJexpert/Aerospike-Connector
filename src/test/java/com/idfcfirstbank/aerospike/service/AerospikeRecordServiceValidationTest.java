@@ -143,4 +143,76 @@ class AerospikeRecordServiceValidationTest {
         assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
         assertTrue(exception.getMessage().contains("64-bit integer range"));
     }
+
+    @Test
+    void createRecordRejectsEmptyBins() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.createRecord("test", "customer", "123", Collections.<String, Object>emptyMap(), 0));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("bins map is required"));
+    }
+
+    @Test
+    void updateRecordRejectsBlankSetName() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+        Map<String, Object> bins = new LinkedHashMap<String, Object>();
+        bins.put("name", "test");
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.updateRecord("test", " ", "123", bins, 0));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("setName must not be blank"));
+    }
+
+    @Test
+    void putRecordIfGenerationRejectsNegativeGeneration() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+        Map<String, Object> bins = new LinkedHashMap<String, Object>();
+        bins.put("name", "test");
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.putRecordIfGeneration("test", "customer", "123", bins, 0, -1));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("expectedGeneration must not be negative"));
+    }
+
+    @Test
+    void incrementBinsRejectsEmptyDeltas() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.incrementBins("test", "customer", "123", Collections.<String, Object>emptyMap(), 0));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("deltas map is required"));
+    }
+
+    @Test
+    void incrementBinsRejectsNonNumericDelta() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+        Map<String, Object> deltas = new LinkedHashMap<String, Object>();
+        deltas.put("hits", "not-a-number");
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.incrementBins("test", "customer", "123", deltas, 0));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("must be numeric"));
+    }
+
+    @Test
+    void touchRecordRejectsInvalidTtl() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.touchRecord("test", "customer", "123", -5));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("ttlSeconds must be >= -2"));
+    }
 }
