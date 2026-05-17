@@ -64,7 +64,7 @@ public final class AerospikeRecordService {
 
     public Map<String, Object> putRecord(String namespace, String setName, String key, Map<String, Object> bins, int ttlSeconds) {
         try {
-            AerospikeValidation.requireNonNegative(ttlSeconds, "ttlSeconds");
+            requireValidTtl(ttlSeconds);
             Key recordKey = key(namespace, setName, key);
             Bin[] recordBins = toBins(bins);
             WritePolicy writePolicy = writePolicy();
@@ -226,11 +226,20 @@ public final class AerospikeRecordService {
         }
     }
 
+    private static void requireValidTtl(int ttlSeconds) {
+        // Aerospike WritePolicy.expiration sentinels: -2 keep current TTL,
+        // -1 never expire, 0 namespace default-ttl, >0 seconds.
+        if (ttlSeconds < -2) {
+            throw new IllegalArgumentException(
+                    "ttlSeconds must be >= -2 (-2 keep, -1 never expire, 0 namespace default, >0 seconds)");
+        }
+    }
+
     private static Key key(String namespace, String setName, String key) {
         AerospikeValidation.requireNotBlank(namespace, "namespace");
         AerospikeValidation.requireNotBlank(setName, "setName");
         AerospikeValidation.requireNotBlank(key, "key");
-        return new Key(namespace, setName, key);
+        return new Key(namespace.trim(), setName.trim(), key.trim());
     }
 
     private static Statement statement(String namespace, String setName, List<String> binNames) {
@@ -238,8 +247,8 @@ public final class AerospikeRecordService {
         AerospikeValidation.requireNotBlank(setName, "setName");
 
         Statement statement = new Statement();
-        statement.setNamespace(namespace);
-        statement.setSetName(setName);
+        statement.setNamespace(namespace.trim());
+        statement.setSetName(setName.trim());
 
         String[] selectedBins = selectedBins(binNames);
         if (selectedBins.length > 0) {
@@ -293,11 +302,19 @@ public final class AerospikeRecordService {
             if (decimal.scale() > 0) {
                 throw new IllegalArgumentException(fieldName + " must be an integer value");
             }
-            return decimal.longValueExact();
+            try {
+                return decimal.longValueExact();
+            } catch (ArithmeticException exception) {
+                throw new IllegalArgumentException(fieldName + " exceeds the supported 64-bit integer range", exception);
+            }
         }
 
         if (value instanceof BigInteger) {
-            return ((BigInteger) value).longValueExact();
+            try {
+                return ((BigInteger) value).longValueExact();
+            } catch (ArithmeticException exception) {
+                throw new IllegalArgumentException(fieldName + " exceeds the supported 64-bit integer range", exception);
+            }
         }
 
         double doubleValue = value.doubleValue();
@@ -359,12 +376,22 @@ public final class AerospikeRecordService {
         if (value instanceof BigDecimal) {
             BigDecimal decimal = ((BigDecimal) value).stripTrailingZeros();
             if (decimal.scale() <= 0) {
-                return decimal.longValueExact();
+                try {
+                    return decimal.longValueExact();
+                } catch (ArithmeticException exception) {
+                    throw new IllegalArgumentException(
+                            "bin value exceeds the supported 64-bit integer range", exception);
+                }
             }
             return decimal.doubleValue();
         }
         if (value instanceof BigInteger) {
-            return ((BigInteger) value).longValueExact();
+            try {
+                return ((BigInteger) value).longValueExact();
+            } catch (ArithmeticException exception) {
+                throw new IllegalArgumentException(
+                        "bin value exceeds the supported 64-bit integer range", exception);
+            }
         }
         if (value instanceof Map<?, ?>) {
             Map<Object, Object> normalized = new LinkedHashMap<Object, Object>();

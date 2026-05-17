@@ -2,6 +2,8 @@ package com.idfcfirstbank.aerospike.exception;
 
 public final class AerospikeOperationException extends RuntimeException {
 
+    private static final long serialVersionUID = 1L;
+
     private final String operation;
     private final AerospikeErrorType errorType;
 

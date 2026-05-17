@@ -34,15 +34,26 @@ public final class AerospikeClientProvider {
         return CLIENTS.computeIfAbsent(config.clientKey(), key -> createClient(config));
     }
 
+    /**
+     * Closes and evicts every cached client. Intended for application shutdown.
+     * Each entry is removed from the cache before it is closed so a concurrent
+     * {@link #getClient(AerospikeConfig)} cannot hand back a client that this
+     * method is about to close; it will instead build a fresh one. Callers
+     * should still avoid invoking this while operations are actively in flight
+     * on the same configuration.
+     */
     public static void closeAll() {
-        for (AerospikeClient client : CLIENTS.values()) {
+        for (String key : CLIENTS.keySet()) {
+            AerospikeClient client = CLIENTS.remove(key);
+            if (client == null) {
+                continue;
+            }
             try {
                 client.close();
             } catch (RuntimeException ignored) {
                 // Best effort shutdown.
             }
         }
-        CLIENTS.clear();
     }
 
     private static AerospikeClient createClient(AerospikeConfig config) {
@@ -113,7 +124,7 @@ public final class AerospikeClientProvider {
     }
 
     private static char[] passwordChars(String password) {
-        return password == null ? new char[0] : password.toCharArray();
+        return password == null ? null : password.toCharArray();
     }
 
     private static Host[] parseHosts(AerospikeConfig config) {
@@ -130,13 +141,29 @@ public final class AerospikeClientProvider {
         AerospikeValidation.requireNotBlank(value, "host");
 
         int defaultPort = config.isTlsEnabled() ? DEFAULT_TLS_PORT : DEFAULT_PORT;
-        int separator = value.lastIndexOf(':');
-        String host = value;
+        String host;
         int port = defaultPort;
 
-        if (separator > 0 && separator < value.length() - 1) {
+        if (value.charAt(0) == '[') {
+            int closing = value.indexOf(']');
+            if (closing < 0) {
+                throw new IllegalArgumentException("IPv6 host must be enclosed in brackets, e.g. [::1]:3000");
+            }
+            host = value.substring(1, closing).trim();
+            String remainder = value.substring(closing + 1).trim();
+            if (!remainder.isEmpty()) {
+                if (remainder.charAt(0) != ':') {
+                    throw new IllegalArgumentException("unexpected characters after IPv6 host: " + remainder);
+                }
+                port = parsePort(remainder.substring(1).trim());
+            }
+        } else if (value.indexOf(':') == value.lastIndexOf(':') && value.indexOf(':') > 0) {
+            int separator = value.lastIndexOf(':');
             host = value.substring(0, separator).trim();
-            port = Integer.parseInt(value.substring(separator + 1).trim());
+            port = parsePort(value.substring(separator + 1).trim());
+        } else {
+            // No port, or a bare (unbracketed) IPv6 literal with multiple colons.
+            host = value;
         }
 
         AerospikeValidation.requireNotBlank(host, "host");
@@ -146,5 +173,16 @@ public final class AerospikeClientProvider {
             return new Host(host, config.getTlsName(), port);
         }
         return new Host(host, port);
+    }
+
+    private static int parsePort(String text) {
+        if (text.isEmpty()) {
+            throw new IllegalArgumentException("port must not be blank");
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException("port must be an integer but was '" + text + "'", exception);
+        }
     }
 }

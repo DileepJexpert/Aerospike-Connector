@@ -120,6 +120,13 @@ public final class AerospikeFunctions {
         return putRecordWithConfig(config, setName, key, bins, toTtlSeconds(ttlSeconds));
     }
 
+    /**
+     * Writes a record using the namespace default TTL. Note that an
+     * {@code expiration} of {@code 0} means "use the namespace
+     * {@code default-ttl}" in Aerospike, not "never expire". Pass {@code -1}
+     * explicitly via an overload that accepts a TTL if the record must never
+     * expire.
+     */
     public static Map<String, Object> putRecordWithConfig(
             Map<String, Object> config,
             String setName,

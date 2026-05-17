@@ -1,5 +1,10 @@
 package com.idfcfirstbank.aerospike.config;
 
+import com.aerospike.client.policy.AuthMode;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -44,6 +49,9 @@ public final class AerospikeConfig {
         if (builder.tlsEnabled && !hasText(builder.tlsName)) {
             throw new IllegalArgumentException("tlsName is required when tlsEnabled is true");
         }
+        if (hasText(builder.authMode)) {
+            validateAuthMode(builder.authMode);
+        }
 
         this.hosts = builder.hosts.trim();
         this.namespace = trimToNull(builder.namespace);
@@ -74,14 +82,21 @@ public final class AerospikeConfig {
             throw new IllegalArgumentException("config map must not be null");
         }
 
+        String user = firstStringValue(values, "username", "userName", "user");
+        String password = stringValue(values, "password", null);
+        boolean credentialsPresent = hasText(user) && hasText(password);
+        boolean authEnabled = values.containsKey("authEnabled")
+                ? booleanValue(values, "authEnabled", false)
+                : credentialsPresent;
+
         return builder()
                 .hosts(stringValue(values, "hosts", null))
                 .namespace(stringValue(values, "namespace", null))
                 .tlsEnabled(booleanValue(values, "tlsEnabled", false))
-                .authEnabled(booleanValue(values, "authEnabled", false))
+                .authEnabled(authEnabled)
                 .tlsName(stringValue(values, "tlsName", null))
-                .user(firstStringValue(values, "username", "userName", "user"))
-                .password(stringValue(values, "password", null))
+                .user(user)
+                .password(password)
                 .maxConnectionsPerNode(intValue(values, "maxConnectionsPerNode", DEFAULT_MAX_CONNECTIONS_PER_NODE))
                 .maxCommandsInProcess(intValue(values, "maxCommandsInProcess", 0))
                 .maxCommandsInQueue(intValue(values, "maxCommandsInQueue", 0))
@@ -168,6 +183,12 @@ public final class AerospikeConfig {
         return authMode;
     }
 
+    /**
+     * Cache key identifying a unique effective client configuration. Secret
+     * material (user password, trust/key store passwords) is folded into a
+     * one-way fingerprint so that rotating any secret produces a distinct key
+     * while no plaintext credential is ever held as a map key.
+     */
     public String clientKey() {
         return hosts
                 + "|" + nullToEmpty(namespace)
@@ -175,7 +196,6 @@ public final class AerospikeConfig {
                 + "|" + authEnabled
                 + "|" + nullToEmpty(tlsName)
                 + "|" + nullToEmpty(user)
-                + "|" + nullToEmpty(password)
                 + "|" + maxConnectionsPerNode
                 + "|" + maxCommandsInProcess
                 + "|" + maxCommandsInQueue
@@ -184,7 +204,42 @@ public final class AerospikeConfig {
                 + "|" + connectTimeout
                 + "|" + nullToEmpty(trustStorePath)
                 + "|" + nullToEmpty(keyStorePath)
-                + "|" + nullToEmpty(authMode);
+                + "|" + nullToEmpty(authMode)
+                + "|" + secretFingerprint();
+    }
+
+    private String secretFingerprint() {
+        String material = nullToEmpty(password)
+                + '\u001f' + nullToEmpty(trustStorePassword)
+                + '\u001f' + nullToEmpty(keyStorePassword);
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(material.getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(hash.length * 2);
+            for (byte hashByte : hash) {
+                builder.append(Character.forDigit((hashByte >> 4) & 0xF, 16));
+                builder.append(Character.forDigit(hashByte & 0xF, 16));
+            }
+            return builder.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 algorithm is required but unavailable", exception);
+        }
+    }
+
+    private static void validateAuthMode(String authMode) {
+        try {
+            AuthMode.valueOf(authMode.trim().toUpperCase());
+        } catch (IllegalArgumentException exception) {
+            StringBuilder allowed = new StringBuilder();
+            for (AuthMode mode : AuthMode.values()) {
+                if (allowed.length() > 0) {
+                    allowed.append(", ");
+                }
+                allowed.append(mode.name());
+            }
+            throw new IllegalArgumentException(
+                    "authMode '" + authMode + "' is invalid; must be one of: " + allowed);
+        }
     }
 
     private static String firstStringValue(Map<String, Object> values, String firstKey, String secondKey, String thirdKey) {
@@ -225,7 +280,15 @@ public final class AerospikeConfig {
             return ((Number) value).intValue();
         }
         String text = String.valueOf(value).trim();
-        return text.isEmpty() ? defaultValue : Integer.parseInt(text);
+        if (text.isEmpty()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException exception) {
+            throw new IllegalArgumentException(
+                    "config value for '" + key + "' must be an integer but was '" + text + "'", exception);
+        }
     }
 
     private static String trimToNull(String value) {
@@ -245,7 +308,8 @@ public final class AerospikeConfig {
 
     private static int positiveOrDefault(int value, int defaultValue) {
         if (value < 0) {
-            throw new IllegalArgumentException("numeric config values must not be negative");
+            throw new IllegalArgumentException(
+                    "numeric config values must not be negative (use 0 to fall back to the default)");
         }
         return value == 0 ? defaultValue : value;
     }
@@ -372,11 +436,22 @@ public final class AerospikeConfig {
             return this;
         }
 
+        /**
+         * Accepted for forward compatibility with Mule config maps. These are
+         * async event-loop tuning values and are not applied to the synchronous
+         * Aerospike client this library uses; they are retained so existing
+         * environment property files continue to bind without error.
+         */
         public Builder maxCommandsInProcess(int maxCommandsInProcess) {
             this.maxCommandsInProcess = maxCommandsInProcess;
             return this;
         }
 
+        /**
+         * Accepted for forward compatibility with Mule config maps. See
+         * {@link #maxCommandsInProcess(int)} for why this is not applied to the
+         * synchronous client.
+         */
         public Builder maxCommandsInQueue(int maxCommandsInQueue) {
             this.maxCommandsInQueue = maxCommandsInQueue;
             return this;

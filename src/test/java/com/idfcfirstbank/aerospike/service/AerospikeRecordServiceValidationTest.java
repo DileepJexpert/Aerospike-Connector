@@ -6,10 +6,14 @@ import com.idfcfirstbank.aerospike.exception.AerospikeOperationException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -65,5 +69,56 @@ class AerospikeRecordServiceValidationTest {
 
         assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
         assertTrue(exception.getMessage().contains("fieldValue must be an integer value"));
+    }
+
+    @Test
+    void putRecordRejectsTtlBelowSupportedSentinel() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+        Map<String, Object> bins = new LinkedHashMap<String, Object>();
+        bins.put("name", "Dileep");
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.putRecord("test", "customer", "123", bins, -3));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("ttlSeconds must be >= -2"));
+    }
+
+    @Test
+    void putRecordTreatsNeverExpireSentinelAsValidTtl() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+        Map<String, Object> bins = new LinkedHashMap<String, Object>();
+        bins.put("name", "Dileep");
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.putRecord("test", "customer", "123", bins, -1));
+
+        // -1 (never expire) must pass validation; failure here is the absent server, not a validation error.
+        assertNotEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+    }
+
+    @Test
+    void queryByFieldEqualsMapsIntegerOverflowToValidationFailure() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+        BigInteger tooLarge = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.queryByFieldEquals("test", "customer", "id", tooLarge, Collections.singletonList("id")));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("64-bit integer range"));
+    }
+
+    @Test
+    void putRecordMapsBinIntegerOverflowToValidationFailure() {
+        AerospikeRecordService service = new AerospikeRecordService(new AerospikeConfig("127.0.0.1:3000"));
+        Map<String, Object> bins = new LinkedHashMap<String, Object>();
+        bins.put("balance", BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
+
+        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
+                () -> service.putRecord("test", "customer", "123", bins, 0));
+
+        assertEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        assertTrue(exception.getMessage().contains("64-bit integer range"));
     }
 }

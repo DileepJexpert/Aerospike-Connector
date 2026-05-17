@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -69,6 +71,94 @@ class AerospikeConfigTest {
         assertEquals(1000, config.getReadTimeout());
         assertEquals(2000, config.getWriteTimeout());
         assertEquals(3000, config.getConnectTimeout());
+    }
+
+    @Test
+    void clientKeyDistinguishesDifferentStorePasswords() {
+        AerospikeConfig first = AerospikeConfig.builder()
+                .hosts("h:3000")
+                .trustStorePath("/t.jks")
+                .trustStorePassword("one")
+                .build();
+        AerospikeConfig second = AerospikeConfig.builder()
+                .hosts("h:3000")
+                .trustStorePath("/t.jks")
+                .trustStorePassword("two")
+                .build();
+
+        assertNotEquals(first.clientKey(), second.clientKey());
+    }
+
+    @Test
+    void clientKeyDoesNotLeakPlaintextSecrets() {
+        AerospikeConfig config = new AerospikeConfig("h:3000", "user", "sup3rSecret");
+
+        assertFalse(config.clientKey().contains("sup3rSecret"));
+    }
+
+    @Test
+    void invalidIntegerConfigValueReportsKey() {
+        Map<String, Object> values = new HashMap<String, Object>();
+        values.put("hosts", "h:3000");
+        values.put("readTimeout", "not-a-number");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> AerospikeConfig.fromMap(values));
+
+        assertTrue(exception.getMessage().contains("readTimeout"));
+    }
+
+    @Test
+    void rejectsInvalidAuthModeEarly() {
+        Map<String, Object> values = new HashMap<String, Object>();
+        values.put("hosts", "h:3000");
+        values.put("authEnabled", true);
+        values.put("username", "u");
+        values.put("password", "p");
+        values.put("authMode", "NOPE");
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
+                () -> AerospikeConfig.fromMap(values));
+
+        assertTrue(exception.getMessage().contains("authMode"));
+    }
+
+    @Test
+    void acceptsValidAuthModeCaseInsensitively() {
+        AerospikeConfig config = AerospikeConfig.builder()
+                .hosts("h:3000")
+                .authEnabled(true)
+                .user("u")
+                .password("p")
+                .authMode("external")
+                .build();
+
+        assertEquals("external", config.getAuthMode());
+    }
+
+    @Test
+    void fromMapAutoEnablesAuthWhenCredentialsPresentAndFlagAbsent() {
+        Map<String, Object> values = new HashMap<String, Object>();
+        values.put("hosts", "h:3000");
+        values.put("username", "u");
+        values.put("password", "p");
+
+        AerospikeConfig config = AerospikeConfig.fromMap(values);
+
+        assertTrue(config.isAuthEnabled());
+    }
+
+    @Test
+    void fromMapRespectsExplicitAuthDisabledEvenWithCredentials() {
+        Map<String, Object> values = new HashMap<String, Object>();
+        values.put("hosts", "h:3000");
+        values.put("username", "u");
+        values.put("password", "p");
+        values.put("authEnabled", false);
+
+        AerospikeConfig config = AerospikeConfig.fromMap(values);
+
+        assertFalse(config.isAuthEnabled());
     }
 
     @Test
