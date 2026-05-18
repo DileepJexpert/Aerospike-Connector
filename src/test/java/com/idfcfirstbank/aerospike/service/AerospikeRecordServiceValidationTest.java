@@ -90,11 +90,13 @@ class AerospikeRecordServiceValidationTest {
         Map<String, Object> bins = new LinkedHashMap<String, Object>();
         bins.put("name", "Dileep");
 
-        AerospikeOperationException exception = assertThrows(AerospikeOperationException.class,
-                () -> service.putRecord("test", "customer", "123", bins, -1));
-
-        // -1 (never expire) must pass validation; failure here is the absent server, not a validation error.
-        assertNotEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        // TTL=-1 must pass validation. The call either succeeds (server running)
+        // or fails with a non-validation error (server absent). Either is correct.
+        try {
+            service.putRecord("test", "customer", "ttl-sentinel-test", bins, -1);
+        } catch (AerospikeOperationException exception) {
+            assertNotEquals(AerospikeErrorType.VALIDATION_FAILED, exception.getErrorType());
+        }
     }
 
     @Test
